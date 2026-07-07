@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <script>
+        // Check session before anything loads
+        (function checkAuth() {
+            const session = JSON.parse(localStorage.getItem('shootplan_session')) || JSON.parse(sessionStorage.getItem('shootplan_session'));
+            if (!session || !session.loggedAt) {
+                // No session -> redirect
+                window.location.replace('login.html');
+            } else {
+                // Expired session -> clear and redirect
+                if (Date.now() - session.loggedAt >= 7 * 24 * 60 * 60 * 1000) {
+                    localStorage.removeItem('shootplan_session');
+                    sessionStorage.removeItem('shootplan_session');
+                    window.location.replace('login.html');
+                }
+            }
+        })();
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ShootPlan</title>
+    <!-- Supabase integration -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <style>
+        :root {
+            --bg: #0F0F0F;
+            --surface: #1A1A1A;
+            --surface2: #242424;
+            --surface3: #2E2E2E;
+            --gold: #C8A96E;
+            --gold2: #E8C98E;
+            --text: #F5F5F5;
+            --text2: #9A9A9A;
+            --text3: #5A5A5A;
+            --success: #4CAF78;
+            --warn: #F5A623;
+            --danger: #E05252;
+            --blue: #5B9BD5;
+            --rose: #D55B8A;
+            --amber: #D5A55B;
+            --purple: #8B64C8;
+            --font: system-ui, -apple-system, sans-serif;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body.light-mode {
+            --bg: #F5F5F7;
+            --surface: #FFFFFF;
+            --surface2: #E5E5EA;
+            --surface3: #D1D1D6;
+            --text: #1C1C1E;
+            --text2: #8E8E93;
+            --text3: #AEAEB2;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: var(--font); scrollbar-width: none; -ms-overflow-style: none; }
+        *::-webkit-scrollbar { display: none; }
+        
+        body { background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; justify-content: center; }
+        
+        #app { width: 100%; max-width: 430px; height: 100%; position: relative; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+
+        /* HEADER */
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 20px; z-index: 10; background: var(--bg); }
+        .logo-area { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { color: var(--gold); font-size: 28px; }
+        .logo-text { font-size: 1.2rem; font-weight: 700; color: var(--text); }
+        .header-actions { position: relative; }
+        .bell-icon { font-size: 24px; color: var(--text); }
+        .dot-badge { position: absolute; top: 0; right: 2px; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; border: 2px solid var(--bg); }
+
+        /* SEARCH & FILTER */
+        .search-area { padding: 0 20px 10px; }
+        .search-input-wrapper { position: relative; }
+        .search-input-wrapper i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text3); }
+        .search-input { width: 100%; padding: 12px 16px 12px 42px; background: var(--surface); border: 1px solid var(--surface2); border-radius: 12px; color: var(--text); font-size: 0.95rem; outline: none; transition: var(--transition); }
+        .search-input:focus { border-color: var(--gold); }
+        .search-input::placeholder { color: var(--text3); }
+
+        .filter-scroll { display: flex; gap: 8px; padding: 10px 20px 15px; overflow-x: auto; scrollbar-width: none; }
+        .filter-scroll::-webkit-scrollbar { display: none; }
+        .pill { padding: 8px 16px; background: var(--surface); border-radius: 50px; color: var(--text2); font-size: 0.85rem; font-weight: 600; white-space: nowrap; transition: var(--transition); border: 1px solid var(--surface2); cursor: pointer; }
+        .pill.active { background: var(--gold); color: #000; border-color: var(--gold); }
+
+        /* MAIN CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding-bottom: 90px; scrollbar-width: none; }
+        .content-area::-webkit-scrollbar { display: none; }
+        .tab-screen { display: none; animation: fadeIn 0.3s ease; }
+        .tab-screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* SHOOT CARDS */
+        .shoot-list { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+        .shoot-card { background: var(--surface); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--surface2); transition: var(--transition); cursor: pointer; }
+        .shoot-card:active { transform: scale(0.98); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .client-info { display: flex; align-items: center; gap: 12px; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 0.9rem; }
+        .client-name { font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: 2px; }
+        
+        .type-badge { padding: 4px 10px; border-radius: 50px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
+        .type-wedding { background: rgba(213, 91, 138, 0.15); color: var(--rose); }
+        .type-portrait { background: rgba(91, 155, 213, 0.15); color: var(--blue); }
+        .type-commercial { background: rgba(213, 165, 91, 0.15); color: var(--amber); }
+        .type-video { background: rgba(139, 100, 200, 0.15); color: var(--purple); }
+
+        .card-meta { display: flex; flex-direction: column; gap: 6px; }
+        .meta-row { display: flex; align-items: center; gap: 8px; color: var(--text2); font-size: 0.85rem; }
+        .meta-row i { color: var(--text3); font-size: 16px; }
+
+        .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--surface2); }
+        .status-badge { padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+        .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+        .status-approved { background: rgba(76, 175, 120, 0.1); color: var(--success); }
+        .status-approved::before { background: var(--success); }
+        .status-pending { background: rgba(245, 166, 35, 0.1); color: var(--warn); }
+        .status-pending::before { background: var(--warn); }
+        .status-completed { background: rgba(90, 90, 90, 0.1); color: var(--text2); }
+        .status-completed::before { background: var(--text2); }
+        
+        .card-price { font-weight: 700; color: var(--gold); font-size: 0.95rem; }
+
+        /* EMPTY STATE */
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center; padding: 0 40px; }
+        .empty-icon-wrap { width: 80px; height: 80px; background: rgba(200, 169, 110, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
+        .empty-icon-wrap i { font-size: 40px; color: var(--gold); }
+        .empty-state h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text); }
+        .empty-state p { font-size: 0.9rem; color: var(--text2); margin-bottom: 24px; line-height: 1.5; }
+        .empty-btn { padding: 12px 24px; background: var(--gold); color: #000; border: none; border-radius: 12px; font-weight: 700; font-size: 0.95rem; cursor: pointer; margin-bottom: 16px; }
+        .empty-link { color: var(--text3); font-size: 0.85rem; text-decoration: underline; background: none; border: none; cursor: pointer; }
+
+        /* BOTTOM NAV */
+        .bottom-nav { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(15, 15, 15, 0.9); backdrop-filter: blur(10px); border-top: 1px solid var(--surface2); display: flex; justify-content: space-around; padding: 12px 0 24px; z-index: 50; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text3); cursor: pointer; transition: var(--transition); border: none; background: transparent; width: 60px; }
+        .nav-item i { font-size: 24px; }
+        .nav-item span { font-size: 0.65rem; font-weight: 600; }
+        .nav-item.active { color: var(--gold); }
+        .nav-item.active i { transform: translateY(-2px); }
+
+        /* FAB */
+        .fab { position: absolute; bottom: 90px; right: 20px; width: 56px; height: 56px; background: var(--gold); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #000; font-size: 24px; border: none; box-shadow: 0 4px 20px rgba(200, 169, 110, 0.4); z-index: 40; cursor: pointer; transition: var(--transition); }
+        .fab:active { transform: scale(0.9); }
+        .fab.hidden { transform: scale(0); opacity: 0; pointer-events: none; }
+
+        /* MODAL */
+        .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; opacity: 0; pointer-events: none; transition: var(--transition); display: flex; align-items: flex-end; }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-content { width: 100%; background: var(--bg); border-radius: 24px 24px 0 0; border-top: 1px solid var(--surface2); padding: 20px; transform: translateY(100%); transition: var(--transition); max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        .modal-center { transform: scale(0.9); margin: auto; border-radius: 24px; width: 90%; max-width: 340px; text-align: center; border: 1px solid var(--surface2); padding: 24px; justify-content: center; }
+        .modal-overlay.active .modal-center { transform: scale(1); }
+        .modal-handle { width: 40px; height: 4px; background: var(--surface3); border-radius: 4px; margin: 0 auto 20px; }
+        
+        .lang-option { padding: 14px; background: var(--surface); border: 1px solid var(--surface2); border-radius: 12px; cursor: pointer; transition: var(--transition); font-weight: 600; color: var(--text); }
+        .lang-option:hover { border-color: var(--gold); }
+        .lang-option.active { border-color: var(--gold); color: var(--gold); background: rgba(200, 169, 110, 0.1); }
+        
+        .rating-star { font-size: 36px; color: var(--surface3); cursor: pointer; transition: var(--transition); }
+        .rating-star.active { color: var(--gold); }
+        
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 0.8rem; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 14px; background: var(--surface); border: 1px solid var(--surface2); border-radius: 12px; color: var(--text); font-size: 0.95rem; outline: none; font-family: var(--font); }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--gold); }
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; }
+        .form-group textarea { resize: none; height: 80px; }
+        
+        .modal-footer { display: flex; gap: 12px; margin-top: 10px; margin-bottom: 10px; }
+        .btn-ghost { flex: 1; padding: 14px; background: transparent; border: 1px solid var(--surface3); border-radius: 12px; color: var(--text); font-weight: 600; cursor: pointer; }
+        .btn-fill { flex: 2; padding: 14px; background: var(--gold); border: none; border-radius: 12px; color: #000; font-weight: 700; cursor: pointer; }
+
+        /* DETAIL VIEW */
+        .detail-view { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 80; transform: translateX(100%); transition: var(--transition); display: flex; flex-direction: column; }
+        .detail-view.active { transform: translateX(0); }
+        
+        .detail-hero { height: 180px; background: linear-gradient(to bottom, #2a2a2a, var(--bg)); position: relative; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; color: var(--text3); border-bottom: 1px solid var(--surface2); }
+        .detail-hero i.hero-icon { font-size: 40px; opacity: 0.5; }
+        .detail-hero span { font-size: 0.85rem; font-weight: 600; }
+        
+        .detail-top-bar { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; display: flex; justify-content: space-between; }
+        .back-btn { width: 40px; height: 40px; background: rgba(0,0,0,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; border: none; cursor: pointer; backdrop-filter: blur(4px); }
+        .edit-btn { padding: 0 16px; height: 40px; background: rgba(0,0,0,0.5); border: 1px solid var(--gold); border-radius: 20px; color: var(--gold); font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; cursor: pointer; backdrop-filter: blur(4px); }
+
+        .detail-content { flex: 1; padding: 20px; overflow-y: auto; }
+        .detail-badges { display: flex; gap: 10px; margin-bottom: 20px; }
+        
+        .info-card { background: var(--surface); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--surface2); margin-bottom: 20px; }
+        .info-row { display: flex; gap: 16px; align-items: flex-start; }
+        .info-row i { color: var(--text3); font-size: 20px; margin-top: 2px; }
+        .info-text { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .info-label { font-size: 0.75rem; color: var(--text2); font-weight: 600; text-transform: uppercase; }
+        .info-val { font-size: 1rem; color: var(--text); font-weight: 500; }
+        .info-val.bold { font-weight: 700; font-size: 1.1rem; }
+        .info-val.gold { color: var(--gold); font-weight: 700; }
+        .tel-link { color: var(--blue); text-decoration: none; }
+
+        .action-row { display: flex; gap: 12px; margin-bottom: 24px; }
+        .action-circle-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; background: var(--surface); padding: 12px 0; border-radius: 16px; border: 1px solid var(--surface2); color: var(--text); text-decoration: none; cursor: pointer; }
+        .action-circle-btn i { font-size: 22px; color: var(--gold); }
+        .action-circle-btn span { font-size: 0.75rem; font-weight: 600; }
+
+        .detail-footer-actions { display: flex; flex-direction: column; gap: 12px; padding-bottom: 30px; }
+        .btn-status-cycle { width: 100%; padding: 16px; background: var(--gold); color: #000; border: none; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; }
+        .btn-delete { width: 100%; padding: 16px; background: transparent; color: var(--danger); border: 1px solid var(--danger); border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; }
+
+        /* CALENDAR TAB */
+        .cal-header { display: flex; justify-content: space-between; align-items: center; padding: 0 20px 20px; }
+        .cal-nav { background: var(--surface); border: none; color: var(--text); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cal-month { font-size: 1.1rem; font-weight: 700; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 10px; gap: 4px; margin-bottom: 24px; }
+        .cal-day-name { text-align: center; font-size: 0.75rem; color: var(--text3); font-weight: 600; margin-bottom: 10px; }
+        .cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 500; border-radius: 12px; cursor: pointer; position: relative; }
+        .cal-cell.muted { color: var(--surface3); }
+        .cal-cell.today { color: var(--gold); font-weight: 700; }
+        .cal-cell.selected { background: var(--gold); color: #000; font-weight: 700; }
+        .cal-dot { width: 4px; height: 4px; background: var(--gold); border-radius: 50%; position: absolute; bottom: 6px; }
+        .cal-cell.selected .cal-dot { background: #000; }
+        
+        .cal-shoots-title { padding: 0 20px; font-size: 0.9rem; font-weight: 700; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; }
+
+        /* CLIENTS TAB */
+        .clients-list { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+        .client-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border-radius: 16px; border: 1px solid var(--surface2); cursor: pointer; }
+        .client-row-left { display: flex; align-items: center; gap: 12px; }
+        .client-row-info { display: flex; flex-direction: column; gap: 4px; }
+        .client-row-name { font-weight: 700; font-size: 0.95rem; }
+        .client-row-phone { font-size: 0.8rem; color: var(--text2); }
+
+        /* PROFILE TAB */
+        .profile-header { display: flex; flex-direction: column; align-items: center; padding: 20px; gap: 12px; border-bottom: 1px solid var(--surface2); margin-bottom: 20px; }
+        .profile-avatar-large { width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--gold); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; background: var(--surface); color: var(--text); }
+        .profile-name { font-size: 1.2rem; font-weight: 700; }
+        .pro-badge { background: rgba(200, 169, 110, 0.2); color: var(--gold); padding: 4px 12px; border-radius: 50px; font-size: 0.75rem; font-weight: 700; letter-spacing: 1px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 0 20px 24px; }
+        .stat-box { background: var(--surface); border: 1px solid var(--surface2); padding: 16px 12px; border-radius: 16px; text-align: center; display: flex; flex-direction: column; gap: 6px; }
+        .stat-label { font-size: 0.75rem; color: var(--text2); font-weight: 600; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .stat-value.gold { color: var(--gold); }
+
+        .settings-list { padding: 0 20px; display: flex; flex-direction: column; gap: 8px; }
+        .setting-item { display: flex; align-items: center; justify-content: space-between; padding: 16px; background: var(--surface); border-radius: 16px; border: 1px solid var(--surface2); cursor: pointer; }
+        .setting-left { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 0.95rem; }
+        .setting-left i { font-size: 20px; color: var(--text2); }
+        .setting-item.danger .setting-left { color: var(--danger); }
+        .setting-item.danger .setting-left i { color: var(--danger); }
+        .setting-right { color: var(--text3); }
+        
+        .toggle { width: 44px; height: 24px; background: var(--gold); border-radius: 50px; position: relative; cursor: pointer; }
+        .toggle::after { content: ''; position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: #000; border-radius: 50%; transition: var(--transition); }
+        .toggle.off { background: var(--surface3); }
+        .toggle.off::after { right: 22px; background: var(--text2); }
+
+        /* ===== HISOB BO'LIMI ===== */
+        .settings-section-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text3);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 18px 0 8px;
+        }
+
+        .setting-account-item .setting-left {
+            gap: 14px;
+        }
+
+        .setting-account-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .setting-account-label {
+            font-size: 0.75rem;
+            color: var(--text2);
+            font-weight: 600;
+        }
+
+        .setting-account-value {
+            font-size: 0.9rem;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* Modal hisob */
+        .acc-info-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px;
+            background: var(--surface2);
+            border-radius: 14px;
+        }
+
+        .acc-info-icon {
+            width: 40px; height: 40px;
+            background: rgba(200,169,110,0.12);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--gold);
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .acc-info-label {
+            font-size: 0.73rem;
+            color: var(--text2);
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .acc-info-val {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text);
+            word-break: break-all;
+        }
+
+        .acc-section-title {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        /* Parol kuch barlari */
+        .pass-bar {
+            flex: 1;
+            height: 3px;
+            border-radius: 3px;
+            background: var(--surface3);
+            transition: background 0.3s;
+        }
+        .pass-bar.weak   { background: var(--danger); }
+        .pass-bar.medium { background: var(--warn); }
+        .pass-bar.strong { background: var(--success); }
+
+        /* TOAST */
+        .toast { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface3); color: var(--text); padding: 12px 24px; border-radius: 50px; font-size: 0.9rem; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: var(--transition); z-index: 200; white-space: nowrap; border: 1px solid var(--surface2); }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        /* PUSH NOTIFICATION (APP-LIKE) */
+        .push-notif {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 400px;
+            background: rgba(40, 40, 40, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 9999;
+            transition: top 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 1px solid rgba(200, 169, 110, 0.3);
+        }
+        .push-notif.show { top: 20px; }
+        
+        .push-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--gold), #f3d498);
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            color: #000;
+            font-size: 24px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(200,169,110,0.4);
+        }
+        
+        .push-body { flex: 1; }
+        .push-title { font-weight: 800; font-size: 0.95rem; margin-bottom: 4px; color: #fff; }
+        .push-desc { font-size: 0.85rem; color: #ddd; line-height: 1.3; }
+        .push-time { font-size: 0.7rem; color: var(--gold); margin-top: 4px; font-weight: 600; }
+
+        /* NOTIFICATIONS PANEL */
+        .notif-panel {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            width: 320px;
+            background: rgba(30, 30, 30, 0.85);
+            border: 1px solid var(--surface3);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            padding: 16px;
+            display: none;
+            z-index: 1000;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            transform-origin: top right;
+            animation: fadeInScale 0.2s ease forwards;
+        }
+        .notif-panel.active { display: block; }
+        
+        @keyframes fadeInScale {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .notif-header {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--surface3);
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notif-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px 10px;
+            border-radius: 10px;
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        .notif-item:hover { background: var(--surface2); }
+        
+        .notif-icon-wrap {
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(200, 169, 110, 0.15);
+            color: var(--gold);
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .notif-text {
+            font-size: 0.85rem;
+            color: var(--text);
+            line-height: 1.4;
+        }
+        .notif-time {
+            font-size: 0.7rem;
+            color: var(--text3);
+            margin-top: 4px;
+        }
+    </style>
+    <script src="lang.js"></script>
+    <script>
+        function toggleNotifPanel() {
+            document.getElementById('notifPanel').classList.toggle('active');
+        }
+    </script>
+</head>
+<body>
+    <div id="app">
+        
+        <!-- PUSH NOTIFICATION -->
+        <div class="push-notif" id="pushNotif" onclick="hidePushNotif()">
+            <div class="push-icon"><i class="ti ti-bell-ringing"></i></div>
+            <div class="push-body">
+                <div class="push-title" id="pushTitle">Eslatma!</div>
+                <div class="push-desc" id="pushDesc">1 soatdan so'ng syomka boshlanadi.</div>
+                <div class="push-time">Hozir</div>
+            </div>
+        </div>
+
+        <!-- HEADER -->
+        <header class="header" id="mainHeader">
+            <div class="logo-area">
+                <i class="ti ti-aperture logo-icon"></i>
+                <div class="logo-text">ShootPlan</div>
+            </div>
+            <div class="header-actions" onclick="toggleNotifPanel()">
+                <i class="ti ti-bell bell-icon"></i>
+                <div class="dot-badge"></div>
+            </div>
+        </header>
+
+        <!-- NOTIFICATION PANEL -->
+        <div class="notif-panel" id="notifPanel">
+            <div class="notif-header">
+                <span data-i18n="prof_notif">Bildirishnomalar</span>
+                <i class="ti ti-check" style="color:var(--text3); font-size:16px; cursor:pointer;" onclick="toggleNotifPanel()"></i>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <div class="notif-item">
+                    <div class="notif-icon-wrap"><i class="ti ti-star"></i></div>
+                    <div>
+                        <div class="notif-text">Xush kelibsiz! ShootPlan orqali syomkalarni rejalashtirishni boshlang.</div>
+                        <div class="notif-time">Hozir</div>
+                    </div>
+                </div>
+                <div class="notif-item">
+                    <div class="notif-icon-wrap" style="background: rgba(76, 175, 120, 0.15); color: var(--success);"><i class="ti ti-check"></i></div>
+                    <div>
+                        <div class="notif-text">Profilingiz muvaffaqiyatli yaratildi.</div>
+                        <div class="notif-time">2 soat oldin</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEARCH & FILTER BAR (Only visible on Home) -->
+        <div id="searchFilterArea">
+            <div class="search-area">
+                <div class="search-input-wrapper">
+                    <i class="ti ti-search"></i>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Qidirish..." data-i18n="search_placeholder" oninput="filterHome()">
+                </div>
+            </div>
+            <div class="filter-scroll" id="filterPills">
+                <div class="pill active" onclick="setFilter('Barchasi')" data-i18n="filter_all">Barchasi</div>
+                <div class="pill" onclick="setFilter('To\'y')" data-i18n="filter_wedding">To'y</div>
+                <div class="pill" onclick="setFilter('Portret')" data-i18n="filter_portrait">Portret</div>
+                <div class="pill" onclick="setFilter('Commercial')" data-i18n="filter_commercial">Commercial</div>
+                <div class="pill" onclick="setFilter('Video')" data-i18n="filter_video">Video</div>
+            </div>
+        </div>
+
+        <!-- CONTENT AREA -->
+        <div class="content-area" id="mainContent">
+            
+            <!-- TAB 1: HOME -->
+            <div class="tab-screen active" id="tabHome">
+                <div class="shoot-list" id="homeShootList"></div>
+            </div>
+
+            <!-- TAB 2: CALENDAR -->
+            <div class="tab-screen" id="tabCalendar">
+                <div class="cal-header">
+                    <button class="cal-nav" onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+                    <div class="cal-month" id="calMonthText">Iyul 2025</div>
+                    <button class="cal-nav" onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+                </div>
+                <div class="cal-grid">
+                    <div class="cal-day-name">Du</div><div class="cal-day-name">Se</div><div class="cal-day-name">Ch</div><div class="cal-day-name">Pa</div><div class="cal-day-name">Ju</div><div class="cal-day-name">Sh</div><div class="cal-day-name">Ya</div>
+                </div>
+                <div class="cal-grid" id="calGridDays"></div>
+                
+                <div class="cal-shoots-title">Tanlangan kun syomkalari</div>
+                <div class="shoot-list" id="calShootList"></div>
+            </div>
+
+            <!-- TAB 3: CLIENTS -->
+            <div class="tab-screen" id="tabClients">
+                <div class="clients-list" id="clientsList"></div>
+            </div>
+
+            <!-- TAB 4: PROFILE -->
+            <div class="tab-screen" id="tabProfile">
+                <div class="profile-header">
+                    <div class="profile-avatar-large">JT</div>
+                    <div class="profile-name">Jasur Toshmatov</div>
+                    <div class="pro-badge">PRO</div>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="prof_this_month">Bu oy</div>
+                        <div class="stat-value" id="statMonth">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="prof_total">Jami</div>
+                        <div class="stat-value" id="statTotal">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label" data-i18n="prof_revenue">Daromad</div>
+                        <div class="stat-value gold" id="statRev">0M</div>
+                    </div>
+                </div>
+                <div class="settings-list">
+                    <div class="setting-item" onclick="toggleNotifications(this)">
+                        <div class="setting-left"><i class="ti ti-bell"></i> <span data-i18n="prof_notif">Bildirishnomalar</span></div>
+                        <div class="toggle"></div>
+                    </div>
+                    <div class="setting-item" onclick="toggleDarkMode(this)">
+                        <div class="setting-left"><i class="ti ti-moon"></i> <span data-i18n="prof_darkmode">Qorong\'u rejim</span></div>
+                        <div class="toggle"></div>
+                    </div>
+                    <div class="setting-item" onclick="changeLanguage()">
+                        <div class="setting-left"><i class="ti ti-language"></i> <span id="currentLangText">Til: O'zbek</span></div>
+                        <i class="ti ti-chevron-right setting-right"></i>
+                    </div>
+                    <div class="setting-item" onclick="rateApp()">
+                        <div class="setting-left"><i class="ti ti-star"></i> <span data-i18n="prof_rate">Ilovani baholash</span></div>
+                        <i class="ti ti-chevron-right setting-right"></i>
+                    </div>
+
+                    <!-- ACCOUNT SECTION DIVIDER -->
+                    <div class="settings-section-label" data-i18n="prof_sec">Hisob va xavfsizlik</div>
+
+                    <!-- EMAIL -->
+                    <div class="setting-item setting-account-item" onclick="openAccountModal()">
+                        <div class="setting-left">
+                            <i class="ti ti-mail"></i>
+                            <div class="setting-account-info">
+                                <span class="setting-account-label">Email manzil</span>
+                                <span class="setting-account-value" id="profileEmailDisplay">—</span>
+                            </div>
+                        </div>
+                        <i class="ti ti-chevron-right setting-right"></i>
+                    </div>
+
+                    <!-- PAROL -->
+                    <div class="setting-item setting-account-item" onclick="openAccountModal()">
+                        <div class="setting-left">
+                            <i class="ti ti-lock"></i>
+                            <div class="setting-account-info">
+                                <span class="setting-account-label">Parol</span>
+                                <span class="setting-account-value">••••••••</span>
+                            </div>
+                        </div>
+                        <i class="ti ti-chevron-right setting-right"></i>
+                    </div>
+
+                    <div class="setting-item danger" onclick="logoutApp()">
+                        <div class="setting-left"><i class="ti ti-logout"></i> <span data-i18n="prof_logout">Chiqish</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAV -->
+        <div class="bottom-nav">
+            <button class="nav-item active" onclick="switchTab('tabHome', this)">
+                <i class="ti ti-home"></i><span data-i18n="nav_home">Asosiy</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('tabCalendar', this)">
+                <i class="ti ti-calendar"></i><span data-i18n="nav_calendar">Jadval</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('tabClients', this)">
+                <i class="ti ti-users"></i><span data-i18n="nav_clients">Mijozlar</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('tabProfile', this)">
+                <i class="ti ti-user"></i><span data-i18n="nav_profile">Profil</span>
+            </button>
+        </div>
+
+        <!-- FAB -->
+        <button class="fab" id="fabBtn" onclick="openModal()"><i class="ti ti-plus"></i></button>
+
+        <!-- ADD/EDIT MODAL -->
+        <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-handle"></div>
+                <form id="shootForm" onsubmit="saveShoot(event)">
+                    <input type="hidden" id="formId">
+                    <div class="form-group">
+                        <label>Mijoz ismi*</label>
+                        <input type="text" id="formName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Telefon raqam</label>
+                        <input type="text" id="formPhone" placeholder="+998">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Syomka turi*</label>
+                            <select id="formType" required>
+                                <option value="Portrait">Portrait</option>
+                                <option value="Wedding">Wedding</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Video">Video</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Holat</label>
+                            <select id="formStatus">
+                                <option value="approved">approved</option>
+                                <option value="pending">pending</option>
+                                <option value="completed">completed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label data-i18n="form_date">Sana*</label>
+                            <input type="date" id="formDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="form_time">Vaqt</label>
+                            <input type="time" id="formTime" value="10:00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="form_location">Manzil*</label>
+                        <input type="text" id="formLocation" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="form_price">Narx (so\'m)</label>
+                        <input type="number" id="formPrice">
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="form_notes">Izoh</label>
+                        <textarea id="formNotes"></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-ghost" onclick="closeModal()" data-i18n="btn_cancel">Bekor qilish</button>
+                        <button type="submit" class="btn-fill" data-i18n="btn_save">Saqlash</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ACCOUNT / PAROL O'ZGARTIRISH MODAL -->
+        <div class="modal-overlay" id="accountOverlay" onclick="closeAccountModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()" style="max-height:92vh;">
+                <div class="modal-handle"></div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                    <h3 style="font-size:1.1rem;font-weight:800;">Hisob ma'lumotlari</h3>
+                    <button onclick="closeAccountModal()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;"><i class="ti ti-x"></i></button>
+                </div>
+
+                <!-- Email ko'rish -->
+                <div class="acc-info-row">
+                    <div class="acc-info-icon"><i class="ti ti-mail"></i></div>
+                    <div class="acc-info-body">
+                        <div class="acc-info-label">Joriy email</div>
+                        <div class="acc-info-val" id="accEmailVal">—</div>
+                    </div>
+                </div>
+
+                <div style="height:1px;background:var(--surface2);margin:16px 0;"></div>
+
+                <!-- Email o'zgartirish -->
+                <div class="acc-section-title">Email o'zgartirish</div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>Yangi email</label>
+                    <input type="email" id="newEmailInput" placeholder="yangi@email.com" autocapitalize="none">
+                </div>
+                <button class="btn-fill" style="width:100%;margin-bottom:24px;" onclick="saveNewEmail()">Email yangilash</button>
+
+                <div style="height:1px;background:var(--surface2);margin-bottom:20px;"></div>
+
+                <!-- Parol o'zgartirish -->
+                <div class="acc-section-title">Parol o'zgartirish</div>
+
+                <div class="form-group" style="margin-bottom:10px;">
+                    <label>Joriy parol</label>
+                    <div style="position:relative;">
+                        <input type="password" id="curPassInput" placeholder="••••••••" style="padding-right:44px;">
+                        <button type="button" onclick="toggleAccPass('curPassInput',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;"><i class="ti ti-eye-off"></i></button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom:10px;">
+                    <label>Yangi parol</label>
+                    <div style="position:relative;">
+                        <input type="password" id="newPassInput" placeholder="••••••••" style="padding-right:44px;" oninput="updatePassStrength(this.value)">
+                        <button type="button" onclick="toggleAccPass('newPassInput',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;"><i class="ti ti-eye-off"></i></button>
+                    </div>
+                    <!-- Kuch indikatori -->
+                    <div id="passStrengthWrap" style="display:none;margin-top:8px;">
+                        <div style="display:flex;gap:4px;margin-bottom:4px;">
+                            <div class="pass-bar" id="pbar1"></div>
+                            <div class="pass-bar" id="pbar2"></div>
+                            <div class="pass-bar" id="pbar3"></div>
+                            <div class="pass-bar" id="pbar4"></div>
+                        </div>
+                        <div style="font-size:0.73rem;font-weight:600;" id="passStrengthText"></div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label>Yangi parolni tasdiqlang</label>
+                    <div style="position:relative;">
+                        <input type="password" id="confPassInput" placeholder="••••••••" style="padding-right:44px;">
+                        <button type="button" onclick="toggleAccPass('confPassInput',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;"><i class="ti ti-eye-off"></i></button>
+                    </div>
+                </div>
+
+                <button class="btn-fill" style="width:100%;" onclick="saveNewPassword()">Parolni yangilash</button>
+            </div>
+        </div>
+
+        <!-- CONFIRM MODAL -->
+        <div class="modal-overlay" id="confirmOverlay" onclick="closeConfirmModal(event)">
+            <div class="modal-content modal-center" onclick="event.stopPropagation()">
+                <div style="width: 60px; height: 60px; background: rgba(224, 82, 82, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;" id="confirmIconBg">
+                    <i class="ti ti-trash" style="font-size: 32px; color: var(--danger);" id="confirmIcon"></i>
+                </div>
+                <h3 style="font-size: 1.2rem; margin-bottom: 8px;" id="confirmTitle">Tasdiqlash</h3>
+                <p style="font-size: 0.9rem; color: var(--text2); line-height: 1.4; margin-bottom: 24px;" id="confirmDesc">Haqiqatan ham bu amalni bajarasizmi?</p>
+                <div style="display: flex; gap: 12px; width: 100%;">
+                    <button class="btn-ghost" style="flex:1" onclick="closeConfirmModal()">Bekor qilish</button>
+                    <button class="btn-fill" style="flex:1; background: var(--danger); color: white;" id="confirmActionBtn">Tasdiqlash</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- LANGUAGE MODAL -->
+        <div class="modal-overlay" id="langOverlay" onclick="closeLangModal(event)">
+            <div class="modal-content modal-center" onclick="event.stopPropagation()">
+                <h3 style="font-size: 1.2rem; margin-bottom: 16px;">Tilni tanlang</h3>
+                <div style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+                    <div class="lang-option active" onclick="selectLang('uz')">O'zbek</div>
+                    <div class="lang-option" onclick="selectLang('ru')">Русский</div>
+                    <div class="lang-option" onclick="selectLang('en')">English</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RATING MODAL -->
+        <div class="modal-overlay" id="rateOverlay" onclick="closeRateModal(event)">
+            <div class="modal-content modal-center" onclick="event.stopPropagation()">
+                <h3 style="font-size: 1.2rem; margin-bottom: 8px;">Ilovani baholash</h3>
+                <p style="font-size: 0.85rem; color: var(--text2); margin-bottom: 16px;">ShootPlan ilovasi sizga qanchalik foyda keltirdi? Iltimos, o'z fikringizni bildiring.</p>
+                
+                <div class="stars-container" style="display: flex; justify-content: center; gap: 8px; margin-bottom: 16px;">
+                    <i class="ti ti-star rating-star" onclick="setRating(1)"></i>
+                    <i class="ti ti-star rating-star" onclick="setRating(2)"></i>
+                    <i class="ti ti-star rating-star" onclick="setRating(3)"></i>
+                    <i class="ti ti-star rating-star" onclick="setRating(4)"></i>
+                    <i class="ti ti-star rating-star" onclick="setRating(5)"></i>
+                </div>
+                
+                <textarea id="rateFeedback" placeholder="Ilova haqida izohingizni yozing..." style="width: 100%; height: 80px; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--surface2); color: var(--text); outline: none; resize: none; margin-bottom: 16px; font-family: var(--font);"></textarea>
+                
+                <div style="display: flex; gap: 12px; width: 100%;">
+                    <button class="btn-ghost" style="flex:1" onclick="closeRateModal()">Bekor qilish</button>
+                    <button class="btn-fill" style="flex:1;" onclick="submitRating()">Yuborish</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DETAIL VIEW -->
+        <div class="detail-view" id="detailView">
+            <div class="detail-hero">
+                <i class="ti ti-camera hero-icon"></i>
+                <span>Foto qo'shish uchun bosing</span>
+                <div class="detail-top-bar">
+                    <button class="back-btn" onclick="closeDetail()"><i class="ti ti-arrow-left"></i></button>
+                    <button class="edit-btn" onclick="editCurrentShoot()">Tahrirlash</button>
+                </div>
+            </div>
+            
+            <div class="detail-content">
+                <div class="detail-badges">
+                    <div class="type-badge" id="detType"></div>
+                    <div class="status-badge" id="detStatus"></div>
+                </div>
+                
+                <div class="info-card">
+                    <div class="info-row">
+                        <i class="ti ti-user"></i>
+                        <div class="info-text">
+                            <span class="info-label">Mijoz</span>
+                            <span class="info-val bold" id="detName"></span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="ti ti-phone"></i>
+                        <div class="info-text">
+                            <span class="info-label">Telefon</span>
+                            <a href="#" class="info-val tel-link" id="detPhone"></a>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="ti ti-calendar"></i>
+                        <div class="info-text">
+                            <span class="info-label">Sana va vaqt</span>
+                            <span class="info-val" id="detDateTime"></span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="ti ti-map-pin"></i>
+                        <div class="info-text">
+                            <span class="info-label">Manzil</span>
+                            <span class="info-val" id="detLocation"></span>
+                        </div>
+                    </div>
+                    <div class="info-row">
+                        <i class="ti ti-currency-dollar"></i>
+                        <div class="info-text">
+                            <span class="info-label">Narxi</span>
+                            <span class="info-val gold" id="detPrice"></span>
+                        </div>
+                    </div>
+                    <div class="info-row" id="detNotesRow">
+                        <i class="ti ti-notes"></i>
+                        <div class="info-text">
+                            <span class="info-label">Izoh</span>
+                            <span class="info-val" id="detNotes"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-row">
+                    <a href="#" class="action-circle-btn" id="detCallBtn">
+                        <i class="ti ti-phone-call"></i><span>Qo'ng'iroq</span>
+                    </a>
+                    <div class="action-circle-btn">
+                        <i class="ti ti-message"></i><span>Xabar</span>
+                    </div>
+                    <div class="action-circle-btn">
+                        <i class="ti ti-map-pin"></i><span>Xarita</span>
+                    </div>
+                </div>
+
+                <div class="detail-footer-actions">
+                    <button class="btn-status-cycle" onclick="cycleStatus()">Statusni yangilash</button>
+                    <button class="btn-delete" onclick="deleteCurrentShoot()">O'chirish</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOAST -->
+        <div class="toast" id="toast"></div>
+
+    </div>
+
+    <!-- APP LOGIC -->
+    <script>
+        // --- DATA ---
+        let shoots = JSON.parse(localStorage.getItem('shootplan_index_data')) || [];
+
+        let currentFilter = "Hammasi";
+        let currentDetailId = null;
+        
+        const today = new Date();
+        let currentDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        let selectedDateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        const monthNames = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+        const colors = ["#D55B8A", "#5B9BD5", "#D5A55B", "#8B64C8", "#4CAF78", "#F5A623"];
+
+        // --- HELPERS ---
+        const INITIALS = (name) => {
+            const words = name.trim().split(' ');
+            if (words.length === 1) return words[0].substring(0, 2).toUpperCase();
+            return (words[0][0] + words[1][0]).toUpperCase();
+        };
+
+        const avatarColor = (name) => {
+            let sum = 0;
+            for(let i=0; i<name.length; i++) sum += name.charCodeAt(i);
+            return colors[sum % colors.length];
+        };
+
+        const formatPrice = (p) => {
+            if(!p) return "Kelishilgan";
+            return parseInt(p).toLocaleString('uz-UZ') + " so'm";
+        };
+
+        const formatDate = (dateStr, timeStr) => {
+            // Parse as local date to avoid UTC timezone shift
+            const parts = dateStr.split('-');
+            const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            if(isNaN(d.getTime())) return dateStr;
+            return `${d.getDate()} ${monthNames[d.getMonth()]} ${d.getFullYear()} • ${timeStr}`;
+        };
+
+        const showToast = (msg) => {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2800);
+        };
+
+        // --- RENDER HOME ---
+        const renderShoots = () => {
+            const list = document.getElementById('homeShootList');
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = shoots.filter(s => {
+                const matchType = currentFilter === "Hammasi" || s.type === currentFilter;
+                const matchSearch = s.name.toLowerCase().includes(term) || s.location.toLowerCase().includes(term);
+                return matchType && matchSearch;
+            });
+            
+            // Sort by date closest
+            filtered.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            if(filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon-wrap"><i class="ti ti-camera"></i></div>
+                        <h3>Hali syomka yo'q</h3>
+                        <p>Ushbu bo'limda ko'rsatish uchun ma'lumot topilmadi. Birinchi mijozingizni qo'shing.</p>
+                        <button class="empty-btn" onclick="openModal()">+ Yangi syomka qo'shish</button>
+                        <button class="empty-link" onclick="loadSampleData()">Namuna ma'lumotlarni ko'rish &rarr;</button>
+                    </div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(s => `
+                <div class="shoot-card" onclick="openDetail(${s.id})">
+                    <div class="card-header">
+                        <div class="client-info">
+                            <div class="avatar" style="background: ${avatarColor(s.name)}">${INITIALS(s.name)}</div>
+                            <div>
+                                <div class="client-name">${s.name}</div>
+                                <div class="type-badge type-${s.type.toLowerCase()}">${s.type}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-meta">
+                        <div class="meta-row"><i class="ti ti-calendar"></i> ${formatDate(s.date, s.time)}</div>
+                        <div class="meta-row"><i class="ti ti-map-pin"></i> ${s.location}</div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="status-badge status-${s.status.toLowerCase()}">${t('status_' + s.status)}</div>
+                        <div class="card-price">${formatPrice(s.price)}</div>
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        const setFilter = (type) => {
+            currentFilter = type;
+            document.querySelectorAll('.pill').forEach(p => {
+                p.classList.toggle('active', p.textContent === type);
+            });
+            renderShoots();
+        };
+
+        const filterHome = () => renderShoots();
+
+        const loadSampleData = () => {
+            shoots = [
+                {id:1, name:"Nilufar Karimova", phone:"+998 90 123 45 67", type:"Wedding", date:"2025-07-15", time:"10:00", location:"Mirzo Ulug'bek, Toshkent", price:"3500000", status:"approved", notes:"To'y marosimi, 200 kishi"},
+                {id:2, name:"Jasur Toshmatov", phone:"+998 91 234 56 78", type:"Portrait", date:"2025-07-18", time:"14:00", location:"Chilonzor, Toshkent", price:"800000", status:"pending", notes:"Biznes portret"},
+                {id:3, name:"Malika Yusupova", phone:"+998 93 345 67 89", type:"Commercial", date:"2025-07-12", time:"09:00", location:"Yunusobod, Toshkent", price:"2000000", status:"completed", notes:"Mahsulot reklama surati"},
+                {id:4, name:"Bobur Rahimov", phone:"+998 97 456 78 90", type:"Video", date:"2025-07-22", time:"11:00", location:"Shayxontohur, Toshkent", price:"5000000", status:"approved", notes:"Korporativ video"}
+            ];
+            renderShoots();
+            renderCalendar();
+            renderClients();
+            renderProfile();
+        };
+
+        // --- RENDER CALENDAR ---
+        const changeMonth = (dir) => {
+            currentDate.setMonth(currentDate.getMonth() + dir);
+            renderCalendar();
+        };
+
+        const renderCalendar = () => {
+            document.getElementById('calMonthText').textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            
+            const grid = document.getElementById('calGridDays');
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            const firstDay = new Date(year, month, 1).getDay(); // 0 is Sun
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const daysInPrev = new Date(year, month, 0).getDate();
+            
+            let html = '';
+            let startDay = firstDay === 0 ? 6 : firstDay - 1; // Mon = 0
+            
+            // Prev month
+            for(let i = startDay - 1; i >= 0; i--) {
+                html += `<div class="cal-cell muted">${daysInPrev - i}</div>`;
+            }
+            
+            // Current month
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            for(let i = 1; i <= daysInMonth; i++) {
+                const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+                const isSelected = dStr === selectedDateStr ? 'selected' : '';
+                const isToday = dStr === todayStr ? 'today' : '';
+                const hasShoot = shoots.some(s => s.date === dStr) ? '<div class="cal-dot"></div>' : '';
+                
+                html += `<div class="cal-cell ${isSelected} ${isToday}" onclick="selectDate('${dStr}')">
+                            ${i}${hasShoot}
+                         </div>`;
+            }
+            
+            // Next month to fill 42 cells
+            const totalCells = startDay + daysInMonth;
+            const nextDays = 42 - totalCells;
+            for(let i=1; i<=nextDays; i++){
+                html += `<div class="cal-cell muted">${i}</div>`;
+            }
+            
+            grid.innerHTML = html;
+            renderCalShoots();
+        };
+
+        const selectDate = (dStr) => {
+            selectedDateStr = dStr;
+            renderCalendar();
+        };
+
+        const renderCalShoots = () => {
+            const list = document.getElementById('calShootList');
+            const dayShoots = shoots.filter(s => s.date === selectedDateStr);
+            
+            if(dayShoots.length === 0) {
+                list.innerHTML = `<div style="text-align:center; padding:20px; color:var(--text3); font-size:0.9rem;">Bu kunda syomka yo'q</div>`;
+                return;
+            }
+            
+            list.innerHTML = dayShoots.map(s => `
+                <div class="shoot-card" style="padding:12px; gap:8px;" onclick="openDetail(${s.id})">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="font-weight:700;">${s.time} - ${s.name}</div>
+                        <div class="status-badge status-${s.status.toLowerCase()}" style="font-size:0.65rem;">${t('status_' + s.status)}</div>
+                    </div>
+                    <div style="font-size:0.8rem; color:var(--text2);"><i class="ti ti-map-pin"></i> ${s.location}</div>
+                </div>
+            `).join('');
+        };
+
+        // --- RENDER CLIENTS ---
+        const renderClients = () => {
+            const list = document.getElementById('clientsList');
+            
+            // Deduplicate by name
+            const unique = [];
+            const map = new Map();
+            for (const item of shoots) {
+                if(!map.has(item.name)){
+                    map.set(item.name, true);
+                    unique.push(item);
+                }
+            }
+            
+            unique.sort((a,b) => a.name.localeCompare(b.name));
+
+            if(unique.length === 0){
+                list.innerHTML = `<div style="text-align:center; color:var(--text3); padding:40px;">Mijozlar yo'q</div>`;
+                return;
+            }
+
+            list.innerHTML = unique.map(s => `
+                <div class="client-row" onclick="openDetail(${s.id})">
+                    <div class="client-row-left">
+                        <div class="avatar" style="background: ${avatarColor(s.name)}">${INITIALS(s.name)}</div>
+                        <div class="client-row-info">
+                            <div class="client-row-name">${s.name}</div>
+                            <div class="client-row-phone">${s.phone || "Raqam yo'q"}</div>
+                        </div>
+                    </div>
+                    <div class="type-badge type-${s.type.toLowerCase()}">${s.type}</div>
+                </div>
+            `).join('');
+        };
+
+        // --- RENDER PROFILE ---
+        const renderProfile = () => {
+            document.getElementById('statTotal').textContent = shoots.length;
+            
+            const curMonth = new Date().getMonth();
+            const monthShoots = shoots.filter(s => new Date(s.date).getMonth() === curMonth).length;
+            document.getElementById('statMonth').textContent = monthShoots;
+            
+            const totalRev = shoots.reduce((acc, s) => acc + (parseInt(s.price) || 0), 0);
+            let revText = (totalRev / 1000000).toFixed(1) + "M";
+            if(totalRev === 0) revText = "0";
+            document.getElementById('statRev').textContent = revText;
+        };
+
+        // --- PROFILE ACTIONS & CONFIRM MODAL ---
+        let confirmActionCallback = null;
+
+        const showConfirmModal = (options) => {
+            document.getElementById('confirmTitle').textContent = options.title;
+            document.getElementById('confirmDesc').textContent = options.desc;
+            
+            const btn = document.getElementById('confirmActionBtn');
+            btn.textContent = options.btnText || "Ha";
+            btn.style.background = options.danger ? 'var(--danger)' : 'var(--gold)';
+            btn.style.color = options.danger ? '#fff' : '#000';
+            
+            const iconBg = document.getElementById('confirmIconBg');
+            const icon = document.getElementById('confirmIcon');
+            iconBg.style.background = options.danger ? 'rgba(224, 82, 82, 0.1)' : 'rgba(200, 169, 110, 0.1)';
+            icon.style.color = options.danger ? 'var(--danger)' : 'var(--gold)';
+            icon.className = options.icon || 'ti ti-alert-circle';
+            
+            confirmActionCallback = options.onConfirm;
+            document.getElementById('confirmOverlay').classList.add('active');
+        };
+
+        const closeConfirmModal = (e) => {
+            if(e && e.target && e.target !== document.getElementById('confirmOverlay')) return;
+            document.getElementById('confirmOverlay').classList.remove('active');
+        };
+
+        document.getElementById('confirmActionBtn').addEventListener('click', () => {
+            if(confirmActionCallback) confirmActionCallback();
+            closeConfirmModal();
+        });
+
+        const toggleNotifications = (el) => {
+            const isOff = el.querySelector('.toggle').classList.toggle('off');
+            showToast(isOff ? "Bildirishnomalar o'chirildi" : "Bildirishnomalar yoqildi");
+        };
+
+        const toggleDarkMode = (el) => {
+            // Toggle is ON by default (dark mode). Clicking makes it OFF = light mode
+            const toggle = el.querySelector('.toggle');
+            const isNowOff = toggle.classList.toggle('off');
+            if (isNowOff) {
+                // Toggle turned OFF → switch to light mode
+                document.body.classList.add('light-mode');
+                localStorage.setItem('shootplan_theme', 'light');
+            } else {
+                // Toggle turned ON → switch back to dark mode
+                document.body.classList.remove('light-mode');
+                localStorage.setItem('shootplan_theme', 'dark');
+            }
+        };
+
+        const changeLanguage = () => {
+            document.getElementById('langOverlay').classList.add('active');
+        };
+
+        const closeLangModal = (e) => {
+            if(e && e.target && e.target !== document.getElementById('langOverlay')) return;
+            document.getElementById('langOverlay').classList.remove('active');
+        };
+
+        const selectLang = (lang) => {
+            const langMap = {'uz': "O'zbek", 'ru': "Русский", 'en': "English"};
+            document.querySelectorAll('.lang-option').forEach(el => {
+                el.classList.toggle('active', el.textContent.includes(langMap[lang]));
+            });
+            changeLanguageSettings(lang);
+            setTimeout(() => {
+                closeLangModal();
+                showToast(t("msg_saved"));
+            }, 300);
+        };
+
+        let currentRating = 0;
+        
+        const rateApp = () => {
+            currentRating = 0;
+            document.querySelectorAll('.rating-star').forEach(star => {
+                star.className = 'ti ti-star rating-star';
+            });
+            document.getElementById('rateFeedback').value = '';
+            document.getElementById('rateOverlay').classList.add('active');
+        };
+
+        const closeRateModal = (e) => {
+            if(e && e.target && e.target !== document.getElementById('rateOverlay')) return;
+            document.getElementById('rateOverlay').classList.remove('active');
+        };
+
+        const setRating = (val) => {
+            currentRating = val;
+            const stars = document.querySelectorAll('.rating-star');
+            stars.forEach((star, idx) => {
+                if(idx < val) {
+                    star.className = 'ti ti-star-filled rating-star active';
+                } else {
+                    star.className = 'ti ti-star rating-star';
+                }
+            });
+        };
+
+        const submitRating = () => {
+            if(currentRating === 0) {
+                showToast("Iltimos, yulduzcha orqali baholang");
+                return;
+            }
+            closeRateModal();
+            showToast("Fikringiz uchun rahmat!");
+        };
+
+
+        // --- TAB SWITCHING ---
+        const switchTab = (tabId, btn) => {
+            document.querySelectorAll('.tab-screen').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            if(btn) btn.classList.add('active');
+
+            const searchArea = document.getElementById('searchFilterArea');
+            const fab = document.getElementById('fabBtn');
+            
+            if(tabId === 'tabHome') {
+                searchArea.style.display = 'block';
+                fab.classList.remove('hidden');
+                renderShoots();
+            } else {
+                searchArea.style.display = 'none';
+                if(tabId === 'tabCalendar') { fab.classList.remove('hidden'); renderCalendar(); }
+                if(tabId === 'tabClients') { fab.classList.add('hidden'); renderClients(); }
+                if(tabId === 'tabProfile') { fab.classList.add('hidden'); renderProfile(); }
+            }
+        };
+
+        // --- MODAL (ADD/EDIT) ---
+        const openModal = (id = null) => {
+            const form = document.getElementById('shootForm');
+            form.reset();
+            
+            if(id) {
+                const s = shoots.find(x => x.id === id);
+                if(s) {
+                    document.getElementById('formId').value = s.id;
+                    document.getElementById('formName').value = s.name;
+                    document.getElementById('formPhone').value = s.phone;
+                    document.getElementById('formType').value = s.type;
+                    document.getElementById('formStatus').value = s.status;
+                    document.getElementById('formDate').value = s.date;
+                    document.getElementById('formTime').value = s.time;
+                    document.getElementById('formLocation').value = s.location;
+                    document.getElementById('formPrice').value = s.price;
+                    document.getElementById('formNotes').value = s.notes;
+                }
+            } else {
+                document.getElementById('formId').value = "";
+                document.getElementById('formDate').value = new Date().toISOString().split('T')[0];
+            }
+            
+            document.getElementById('modalOverlay').classList.add('active');
+        };
+
+        const closeModal = (e) => {
+            // Called from button (no event) or from overlay click
+            if(e && e.target && e.target !== document.getElementById('modalOverlay')) return;
+            document.getElementById('modalOverlay').classList.remove('active');
+        };
+
+        const saveShoot = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('formId').value;
+            
+            const name = document.getElementById('formName').value.trim();
+            const phone = document.getElementById('formPhone').value.trim();
+            
+            const shootData = {
+                type: document.getElementById('formType').value,
+                status: document.getElementById('formStatus').value,
+                shoot_date: document.getElementById('formDate').value + 'T' + document.getElementById('formTime').value + ':00Z',
+                location: document.getElementById('formLocation').value,
+                price: document.getElementById('formPrice').value,
+                notes: document.getElementById('formNotes').value,
+            };
+
+            const locData = {
+                name, phone,
+                type: shootData.type, status: shootData.status,
+                date: document.getElementById('formDate').value,
+                time: document.getElementById('formTime').value,
+                location: shootData.location, price: shootData.price, notes: shootData.notes
+            };
+
+            if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                if(id) {
+                    const index = shoots.findIndex(x => x.id == id);
+                    if(index > -1) {
+                        shoots[index] = { ...shoots[index], ...locData };
+                        showToast("Syomka yangilandi ✓");
+                        if(currentDetailId == id) populateDetail(id);
+                    }
+                } else {
+                    locData.id = Date.now();
+                    shoots.unshift(locData);
+                    showToast("Syomka saqlandi ✓");
+                }
+                localStorage.setItem('shootplan_index_data', JSON.stringify(shoots));
+                closeModal();
+                renderShoots();
+                renderCalendar();
+                renderClients();
+                renderProfile();
+                return;
+            }
+
+            try {
+                let client_id = null;
+                // Fetch or insert client
+                const { data: clients, error: clientErr } = await supabaseClient
+                    .from('clients').select('id').eq('full_name', name).limit(1);
+                
+                if (clientErr) throw clientErr;
+                
+                if (clients && clients.length > 0) {
+                    client_id = clients[0].id;
+                } else {
+                    const { data: newClient, error: newClientErr } = await supabaseClient
+                        .from('clients').insert([{ full_name: name, phone: phone }]).select();
+                    if (newClientErr) throw newClientErr;
+                    client_id = newClient[0].id;
+                }
+                
+                shootData.client_id = client_id;
+
+                if (id) {
+                    const { error } = await supabaseClient.from('shoots').update(shootData).eq('id', id);
+                    if (error) throw error;
+                    showToast("Syomka yangilandi ✓");
+                } else {
+                    const { error } = await supabaseClient.from('shoots').insert([shootData]);
+                    if (error) throw error;
+                    showToast("Syomka saqlandi ✓");
+                }
+                
+                closeModal();
+                await fetchSupabaseData();
+            } catch (err) {
+                console.error("Saqlashda xatolik:", err);
+                showToast("Saqlashda xatolik yuz berdi");
+            }
+        };
+
+        // --- DETAIL VIEW ---
+        const openDetail = (id) => {
+            currentDetailId = id;
+            populateDetail(id);
+            document.getElementById('detailView').classList.add('active');
+        };
+
+        const closeDetail = () => {
+            document.getElementById('detailView').classList.remove('active');
+            currentDetailId = null;
+        };
+
+        const populateDetail = (id) => {
+            const s = shoots.find(x => x.id == id);
+            if(!s) return;
+
+            document.getElementById('detType').className = `type-badge type-${s.type.toLowerCase()}`;
+            document.getElementById('detType').textContent = s.type;
+            document.getElementById('detStatus').className = `status-badge status-${s.status.toLowerCase()}`;
+            document.getElementById('detStatus').textContent = t('status_' + s.status);
+            
+            document.getElementById('detName').textContent = s.name;
+            
+            const phoneEl = document.getElementById('detPhone');
+            phoneEl.textContent = s.phone || "Kiritilmagan";
+            phoneEl.href = s.phone ? `tel:${s.phone.replace(/\s/g,'')}` : "#";
+            document.getElementById('detCallBtn').href = phoneEl.href;
+
+            document.getElementById('detDateTime').textContent = formatDate(s.date, s.time);
+            document.getElementById('detLocation').textContent = s.location;
+            document.getElementById('detPrice').textContent = formatPrice(s.price);
+            
+            const notesRow = document.getElementById('detNotesRow');
+            if(s.notes) {
+                notesRow.style.display = 'flex';
+                document.getElementById('detNotes').textContent = s.notes;
+            } else {
+                notesRow.style.display = 'none';
+            }
+        };
+
+        const editCurrentShoot = () => {
+            if(currentDetailId) openModal(currentDetailId);
+        };
+
+        const cycleStatus = async () => {
+            if(!currentDetailId) return;
+            const s = shoots.find(x => x.id == currentDetailId);
+            if(s) {
+                const states = ["approved", "pending", "completed"];
+                let idx = states.indexOf(s.status);
+                s.status = states[(idx + 1) % states.length];
+                
+                if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                    localStorage.setItem('shootplan_index_data', JSON.stringify(shoots));
+                    populateDetail(currentDetailId);
+                    renderShoots();
+                    renderCalendar();
+                    showToast("Status yangilandi");
+                    return;
+                }
+                
+                try {
+                    const { error } = await supabaseClient.from('shoots').update({ status: s.status }).eq('id', s.id);
+                    if (error) throw error;
+                    populateDetail(currentDetailId);
+                    renderShoots();
+                    renderCalendar();
+                    showToast("Status yangilandi");
+                } catch(err) {
+                    console.error("Xatolik:", err);
+                    showToast("Xatolik yuz berdi");
+                }
+            }
+        };
+
+        const deleteCurrentShoot = async () => {
+            if(!currentDetailId) return;
+            showConfirmModal({
+                title: "Syomkani o'chirish",
+                desc: "Haqiqatan ham bu syomkani o'chirib tashlamoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.",
+                btnText: "O'chirish",
+                danger: true,
+                icon: "ti ti-trash",
+                onConfirm: async () => {
+                    if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                        shoots = shoots.filter(x => x.id != currentDetailId);
+                        localStorage.setItem('shootplan_index_data', JSON.stringify(shoots));
+                        closeDetail();
+                        renderShoots();
+                        renderCalendar();
+                        renderClients();
+                        renderProfile();
+                        showToast("Syomka o'chirildi ✓");
+                        return;
+                    }
+                    try {
+                        const { error } = await supabaseClient.from('shoots').delete().eq('id', currentDetailId);
+                        if (error) throw error;
+                        closeDetail();
+                        await fetchSupabaseData();
+                        showToast("Syomka o'chirildi ✓");
+                    } catch(err) {
+                        console.error("Xatolik:", err);
+                        showToast("Xatolik yuz berdi");
+                    }
+                }
+            });
+        };
+        // --- HISOB VA PAROL O'ZGARTIRISH ---
+        function openAccountModal() {
+            const overlay = document.getElementById('accountOverlay');
+            overlay.classList.add('active');
+            
+            // Sessiyani olish
+            const session = JSON.parse(localStorage.getItem('shootplan_session') || sessionStorage.getItem('shootplan_session') || '{}');
+            document.getElementById('accEmailVal').textContent = session.email || 'Noma\'lum';
+            
+            // Qolgan joylarni tozalash
+            document.getElementById('newEmailInput').value = '';
+            document.getElementById('curPassInput').value = '';
+            document.getElementById('newPassInput').value = '';
+            document.getElementById('confPassInput').value = '';
+            document.getElementById('passStrengthWrap').style.display = 'none';
+        }
+
+        function closeAccountModal(e) {
+            if (e && e.target !== document.getElementById('accountOverlay')) return;
+            document.getElementById('accountOverlay').classList.remove('active');
+        }
+
+        function toggleAccPass(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'ti ti-eye';
+                icon.style.color = 'var(--gold)';
+            } else {
+                input.type = 'password';
+                icon.className = 'ti ti-eye-off';
+                icon.style.color = 'var(--text3)';
+            }
+        }
+
+        function updatePassStrength(val) {
+            const wrap = document.getElementById('passStrengthWrap');
+            const text = document.getElementById('passStrengthText');
+            const bars = [
+                document.getElementById('pbar1'),
+                document.getElementById('pbar2'),
+                document.getElementById('pbar3'),
+                document.getElementById('pbar4'),
+            ];
+
+            if (!val) {
+                wrap.style.display = 'none';
+                return;
+            }
+            wrap.style.display = 'block';
+
+            let score = 0;
+            if (val.length >= 6)  score++;
+            if (val.length >= 10) score++;
+            if (/[A-Z]/.test(val) || /[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            bars.forEach((b, i) => {
+                b.className = 'pass-bar';
+                if (i < score) {
+                    if (score <= 1) b.classList.add('weak');
+                    else if (score <= 2) b.classList.add('medium');
+                    else if (score <= 3) b.classList.add('medium');
+                    else b.classList.add('strong');
+                }
+            });
+
+            const labels = ['', 'Juda zaif', 'Zaif', 'O\'rtacha', 'Kuchli 🔒'];
+            const colors = ['', 'var(--danger)', 'var(--warn)', 'var(--warn)', 'var(--success)'];
+            text.textContent = labels[score] || 'Juda zaif';
+            text.style.color = colors[score] || 'var(--text3)';
+        }
+
+        function saveNewEmail() {
+            const newEmail = document.getElementById('newEmailInput').value.trim();
+            if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+                showToast("Yangi email xato kiritildi");
+                return;
+            }
+
+            const session = JSON.parse(localStorage.getItem('shootplan_session') || sessionStorage.getItem('shootplan_session') || '{}');
+            let users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+            
+            if (users.some(u => u.email === newEmail)) {
+                showToast("Bu email band");
+                return;
+            }
+
+            const userIdx = users.findIndex(u => u.id === session.id);
+            if (userIdx > -1) {
+                users[userIdx].email = newEmail;
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+                
+                session.email = newEmail;
+                if (localStorage.getItem('shootplan_session')) {
+                    localStorage.setItem('shootplan_session', JSON.stringify(session));
+                } else {
+                    sessionStorage.setItem('shootplan_session', JSON.stringify(session));
+                }
+                
+                document.getElementById('accEmailVal').textContent = newEmail;
+                const emailDisp = document.getElementById('profileEmailDisplay');
+                if (emailDisp) emailDisp.textContent = newEmail;
+                
+                showToast("Email muvaffaqiyatli o'zgardi");
+                document.getElementById('newEmailInput').value = '';
+            }
+        }
+
+        function saveNewPassword() {
+            const curPass = document.getElementById('curPassInput').value;
+            const newPass = document.getElementById('newPassInput').value;
+            const confPass = document.getElementById('confPassInput').value;
+
+            if (!curPass || !newPass || !confPass) {
+                showToast("Barcha maydonlarni to'ldiring");
+                return;
+            }
+            if (newPass !== confPass) {
+                showToast("Parollar mos kelmadi");
+                return;
+            }
+            if (newPass.length < 6) {
+                showToast("Parol kamida 6ta belgi bo'lishi shart");
+                return;
+            }
+
+            const session = JSON.parse(localStorage.getItem('shootplan_session') || sessionStorage.getItem('shootplan_session') || '{}');
+            let users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+            const userIdx = users.findIndex(u => u.id === session.id);
+            
+            if (userIdx > -1) {
+                if (users[userIdx].password !== curPass) {
+                    showToast("Joriy parol noto'g'ri");
+                    return;
+                }
+                users[userIdx].password = newPass;
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+                
+                showToast("Parol muvaffaqiyatli o'zgardi");
+                closeAccountModal();
+            }
+        }
+
+        function logoutApp() {
+            showConfirmModal({
+                title: "Tizimdan chiqish",
+                desc: "Haqiqatan ham hisobingizdan chiqmoqchimisiz? Bunda qurilmadan barcha sessiya o'chadi.",
+                btnText: "Chiqish",
+                danger: true,
+                icon: "ti ti-logout",
+                onConfirm: () => {
+                    localStorage.removeItem('shootplan_session');
+                    sessionStorage.removeItem('shootplan_session');
+                    window.location.href = 'login.html';
+                }
+            });
+        }
+
+        // --- UNIQUE PUSH NOTIFICATION SYSTEM ---
+        function playUniqueSound() {
+            // Web Audio API orqali betakror ovoz yaratamiz (telefonnikiga o'xshamaydigan)
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if(!AudioContext) return;
+            const ctx = new AudioContext();
+
+            // 1-chi ohang
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(880, ctx.currentTime); // A5
+            gain1.gain.setValueAtTime(0.5, ctx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start();
+            osc1.stop(ctx.currentTime + 0.5);
+
+            // 2-chi ohang (jiringlash)
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(1318.51, ctx.currentTime); // E6
+                gain2.gain.setValueAtTime(0.5, ctx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.7);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start();
+                osc2.stop(ctx.currentTime + 0.7);
+            }, 150);
+        }
+
+        function triggerPushNotif(title, desc) {
+            const push = document.getElementById('pushNotif');
+            document.getElementById('pushTitle').textContent = title;
+            document.getElementById('pushDesc').textContent = desc;
+            
+            playUniqueSound();
+            push.classList.add('show');
+            
+            setTimeout(() => {
+                push.classList.remove('show');
+            }, 5000); // 5 soniyadan keyin yopiladi
+        }
+        
+        function hidePushNotif() {
+            document.getElementById('pushNotif').classList.remove('show');
+        }
+
+        // --- REMINDER BACKGROUND SERVICE ---
+        function checkReminders() {
+            const now = new Date();
+            const notified = JSON.parse(localStorage.getItem('shootplan_notified') || '[]');
+            
+            shoots.forEach(s => {
+                if(!s.date || !s.time || s.status === 'completed') return;
+                
+                const shootDate = new Date(`${s.date}T${s.time}`);
+                const diffMs = shootDate - now;
+                const diffMins = Math.floor(diffMs / 60000);
+
+                // Agar syomka roppa-rosa 60 daqiqadan keyin bo'lsa va hali xabar berilmagan bo'lsa
+                if (diffMins === 60 && !notified.includes(s.id)) {
+                    triggerPushNotif("Syomka yaqinlashmoqda!", `${s.name} bilan syomkangiz 1 soatdan so'ng boshlanadi.`);
+                    notified.push(s.id);
+                    localStorage.setItem('shootplan_notified', JSON.stringify(notified));
+                }
+            });
+        }
+
+        // Har 30 soniyada tekshirib turamiz
+        setInterval(checkReminders, 30000);
+
+        // --- TEST UCHUN MAXFIY FUNKSIYA ---
+        // Logoda uzoq bossa yoki console orqali ishlatsa bo'ladi
+        document.querySelector('.logo-area').addEventListener('dblclick', () => {
+            triggerPushNotif("Test xabarnoma", "Bu kelajakdagi mobil ilovamizning maxsus ovozli bildirishnomasi!");
+        });
+
+        // --- NOTIFICATIONS TOGGLE ---
+        function toggleNotifPanel() {
+            const panel = document.getElementById('notifPanel');
+            if(panel) panel.classList.toggle('active');
+        }
+
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('notifPanel');
+            const bell = document.querySelector('.header-actions');
+            if(panel && panel.classList.contains('active') && !panel.contains(e.target) && (!bell || !bell.contains(e.target))) {
+                panel.classList.remove('active');
+            }
+        });
+
+        // --- SESSIYA TEKSHIRUVI ---
+        (function checkAuth() {
+            const session =
+                JSON.parse(localStorage.getItem('shootplan_session') || 'null') ||
+                JSON.parse(sessionStorage.getItem('shootplan_session') || 'null');
+            if (!session || !session.loggedAt) {
+                window.location.href = 'login.html';
+                return;
+            }
+            const sevenDays = 7 * 24 * 60 * 60 * 1000;
+            if (Date.now() - session.loggedAt > sevenDays) {
+                localStorage.removeItem('shootplan_session');
+                window.location.href = 'login.html';
+            }
+            
+            // Emailni UI ga chiqarish
+            setTimeout(() => {
+                const emailDisp = document.getElementById('profileEmailDisplay');
+                if (emailDisp) emailDisp.textContent = session.email || '—';
+            }, 50);
+        })();
+
+        // --- INIT ---
+        // Restore saved theme
+        const savedTheme = localStorage.getItem('shootplan_theme');
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-mode');
+            const darkToggleEl = document.querySelector('[onclick="toggleDarkMode(this)"] .toggle');
+            if (darkToggleEl) darkToggleEl.classList.add('off');
+        }
+
+        async function fetchSupabaseData() {
+            if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                console.warn("Supabase sozlanmagan. LocalStorage dan foydalanilmoqda.");
+                renderShoots();
+                renderCalendar();
+                renderClients();
+                renderProfile();
+                return;
+            }
+            try {
+                const { data, error } = await supabaseClient.from('shoots').select('*, clients(*)');
+                if (error) throw error;
+                
+                shoots = data.map(row => ({
+                    id: row.id,
+                    client_id: row.client_id,
+                    name: row.clients ? row.clients.full_name : 'Noma\'lum',
+                    phone: row.clients ? row.clients.phone : '',
+                    type: row.type || 'Boshqa',
+                    date: row.shoot_date ? row.shoot_date.split('T')[0] : '',
+                    time: row.shoot_date ? row.shoot_date.split('T')[1].substring(0,5) : '',
+                    location: row.location || '',
+                    price: row.price || '',
+                    status: row.status || 'pending',
+                    notes: row.notes || ''
+                }));
+                localStorage.setItem('shootplan_index_data', JSON.stringify(shoots));
+            } catch (err) {
+                console.error("Supabase dan ma'lumot olishda xatolik:", err);
+                showToast("Ma'lumotlarni yangilashda xatolik yuz berdi");
+            }
+            
+            renderShoots();
+            renderCalendar();
+            renderClients();
+            renderProfile();
+        }
+
+        fetchSupabaseData();
+        
+    </script>
+</body>
+</html>

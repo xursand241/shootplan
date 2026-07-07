@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ShootPlan – Fotosuratchi Yordamchisi</title>
+  <!-- Supabase integration -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseConfig.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{font-family:'Inter',sans-serif;background:#050505;color:#fff;min-height:100vh;overflow-x:hidden}
+
+/* ── VARS ── */
+:root{
+  --bg:#0F0F0F;--surface:#1A1A1A;--elevated:#242424;
+  --accent:#C8A96E;--primary:#F5F5F5;--secondary:#9A9A9A;
+  --success:#4CAF78;--warning:#F5A623;--muted:#5A5A5A;--danger:#E05252;
+  --radius:20px;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:0;height:0}
+
+/* ── SHOWCASE ── */
+.showcase{padding:60px 32px 80px;display:flex;flex-direction:column;align-items:center}
+.showcase-header{text-align:center;margin-bottom:56px}
+.brand-chip{display:inline-flex;align-items:center;gap:10px;padding:8px 20px;background:rgba(200,169,110,.09);border:1px solid rgba(200,169,110,.2);border-radius:99px;margin-bottom:20px}
+.brand-chip span{font-weight:800;font-size:15px;color:var(--accent)}
+.brand-chip small{font-size:11px;color:#444;font-weight:600}
+.main-title{font-weight:900;font-size:clamp(26px,4vw,50px);letter-spacing:-2px;line-height:1.08;margin-bottom:14px}
+.main-title em{font-style:normal;background:linear-gradient(135deg,#C8A96E,#e8c98e);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.main-sub{color:#555;font-size:15px;max-width:480px;margin:0 auto;line-height:1.6}
+
+/* ── PHONE FRAMES SCROLL ── */
+.phones-row{display:flex;gap:32px;overflow-x:auto;padding-bottom:16px;justify-content:center;align-items:flex-start;width:100%}
+.phone-col{display:flex;flex-direction:column;align-items:center;gap:14px;flex-shrink:0}
+.phone-label{font-size:10px;font-weight:700;color:#333;letter-spacing:2px;text-transform:uppercase}
+.phone-desc{text-align:center}
+.phone-desc b{display:block;font-size:13px;color:#777;font-weight:700}
+.phone-desc small{font-size:11px;color:#333}
+
+/* ── PHONE FRAME ── */
+.phone{
+  width:390px;height:844px;
+  background:var(--bg);border-radius:44px;
+  overflow:hidden;position:relative;flex-shrink:0;
+  border:7px solid #1e1e1e;
+  box-shadow:0 0 0 1px #2a2a2a,0 40px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.06);
+}
+
+/* ── SCREEN (fills phone) ── */
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.screen.hidden{display:none}
+
+/* ── STATUS BAR ── */
+.statusbar{height:48px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:14px;font-weight:700;flex-shrink:0}
+
+/* ── BOTTOM NAV ── */
+.bottomnav{position:absolute;bottom:0;left:0;right:0;height:82px;background:rgba(26,26,26,.97);backdrop-filter:blur(16px);border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-around;align-items:center;padding:0 8px 10px;z-index:10}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 14px;border-radius:12px;color:var(--muted);transition:color .2s;user-select:none}
+.nav-item.active{color:var(--accent)}
+.nav-item svg{display:block}
+.nav-item span{font-size:10px;font-weight:700}
+
+/* ── FAB ── */
+.fab{position:absolute;bottom:92px;right:16px;width:56px;height:56px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 0 24px rgba(200,169,110,.4),0 8px 24px rgba(0,0,0,.4);z-index:11;transition:transform .15s}
+.fab:active{transform:scale(.92)}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid rgba(255,255,255,.05);box-shadow:0 1px 0 rgba(255,255,255,.04) inset;padding:16px;margin-bottom:12px;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative;overflow:hidden}
+.card:active{transform:scale(.98)}
+
+/* ── BADGES ── */
+.badge{padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;display:inline-block}
+.badge-wedding{background:rgba(244,63,94,.15);color:#fb7185}
+.badge-portrait{background:rgba(59,130,246,.15);color:#60a5fa}
+.badge-commercial{background:rgba(245,158,11,.15);color:#fbbf24}
+.badge-video{background:rgba(139,92,246,.15);color:#a78bfa}
+.badge-other{background:rgba(107,114,128,.15);color:#9ca3af}
+
+.status-tag{font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+.status-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.status-confirmed{color:var(--success)}
+.status-pending{color:var(--warning)}
+.status-done{color:var(--muted)}
+
+/* ── AVATAR ── */
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+
+/* ── SCROLLABLE CONTENT ── */
+.scroll-area{flex:1;overflow-y:auto;padding:0 18px;padding-bottom:90px}
+
+/* ── FORM ── */
+.form-label{font-size:11px;font-weight:700;color:#6a6a6a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:block}
+.form-input{width:100%;background:var(--surface);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:0 14px;height:48px;font-size:14px;color:var(--primary);font-family:inherit;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:rgba(200,169,110,.5)}
+.form-select{appearance:none;-webkit-appearance:none}
+textarea.form-input{height:72px;padding:12px 14px;resize:none}
+
+/* ── MODAL ── */
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);display:flex;flex-direction:column;justify-content:flex-end;z-index:50}
+.modal-sheet{background:#141414;border-radius:28px 28px 0 0;padding:8px 20px 28px;max-height:84%;border-top:1px solid rgba(255,255,255,.08);overflow:hidden;display:flex;flex-direction:column;animation:slideUp .38s cubic-bezier(.16,1,.3,1)}
+.drag-handle{width:40px;height:4px;background:#333;border-radius:2px;margin:10px auto 18px;flex-shrink:0}
+.modal-body{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:14px;padding-bottom:4px}
+
+/* ── BUTTON ── */
+.btn{height:52px;border-radius:16px;font-size:14px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:transform .15s,opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:scale(.97)}
+.btn-gold{background:linear-gradient(135deg,#d4b47a,var(--accent));color:#0F0F0F;box-shadow:0 0 20px rgba(200,169,110,.3)}
+.btn-ghost{background:var(--surface);color:var(--secondary);border:1px solid rgba(255,255,255,.07)}
+.btn-danger{background:transparent;color:var(--danger);border:1.5px solid rgba(224,82,82,.35)}
+
+/* ── TOAST ── */
+.toast{position:absolute;bottom:96px;left:14px;right:14px;background:#242424;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:13px 16px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;z-index:100;box-shadow:0 8px 32px rgba(0,0,0,.5);pointer-events:none;opacity:0;transform:translateY(16px);transition:opacity .3s,transform .3s}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* ── TOGGLE ── */
+.toggle{width:44px;height:24px;border-radius:12px;position:relative;cursor:pointer;transition:background .3s;flex-shrink:0;border:none}
+.toggle-knob{position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .3s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+
+/* ── CALENDAR ── */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;gap:4px 0}
+.cal-day{height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;position:relative;border-radius:50%}
+.cal-day-inner{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.cal-dot{position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--accent)}
+
+/* ── PROGRESS ── */
+.progress-track{height:6px;background:#242424;border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),#d4b47a);border-radius:3px;transition:width 1.2s ease}
+
+/* ── ANIMATIONS ── */
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{from{background-position:-400px 0}to{background-position:400px 0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.fade-in{animation:fadeInUp .3s ease forwards}
+.delay-1{animation-delay:.05s}
+.delay-2{animation-delay:.1s}
+.delay-3{animation-delay:.15s}
+.delay-4{animation-delay:.2s}
+.delay-5{animation-delay:.25s}
+
+.skeleton{background:linear-gradient(90deg,#1f1f1f 0%,#282828 50%,#1f1f1f 100%);background-size:400px 100%;animation:shimmer 1.4s infinite linear;border-radius:8px}
+
+/* ── INFO ROW ── */
+.info-row{display:flex;gap:12px;align-items:flex-start}
+.info-icon{width:36px;height:36px;border-radius:10px;background:rgba(200,169,110,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.info-label{font-size:11px;color:#6a6a6a;font-weight:600;margin-bottom:3px}
+.info-value{font-size:14px;font-weight:600;color:var(--primary)}
+
+/* ── INTERACTIVE BTN STRIP ── */
+.showcase-tabs{display:flex;justify-content:center;gap:10px;margin-bottom:48px;flex-wrap:wrap}
+.showcase-tab{padding:8px 20px;border-radius:99px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;transition:all .2s}
+.showcase-tab.active{background:var(--accent);color:#0F0F0F}
+.showcase-tab.inactive{background:#1A1A1A;color:#555}
+
+/* ── TOKEN GRID ── */
+.token-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;max-width:900px;width:100%;margin:0 auto}
+.token-card{background:#111;border-radius:14px;overflow:hidden;border:1px solid #1a1a1a}
+.token-swatch{height:56px}
+.token-info{padding:10px 12px}
+.token-info b{font-size:12px;display:block}
+.token-info code{font-size:10px;color:#555;margin-top:2px;display:block;font-family:monospace}
+
+/* ── SECTION ── */
+.section-title{text-align:center;margin:72px 0 28px}
+.section-title h2{font-weight:800;font-size:26px;letter-spacing:-1px;margin-bottom:6px}
+.section-title p{color:#444;font-size:14px}
+
+.gold-chip{display:inline-block;background:rgba(200,169,110,.08);border:1px solid rgba(200,169,110,.2);border-radius:99px;padding:6px 16px;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin-bottom:12px}
+
+/* ── SEPARATOR ── */
+.sep{height:1px;background:rgba(255,255,255,.04);margin:0 0 12px}
+
+/* ── HERO BG PATTERN ── */
+.hero-bg{background-image:radial-gradient(circle at 2px 2px,rgba(255,255,255,.025) 1px,transparent 0);background-size:28px 28px}
+
+/* FILTER TABS */
+.filter-row{display:flex;overflow-x:auto;gap:8px;padding:0 18px;margin-bottom:14px;flex-shrink:0}
+.filter-row::-webkit-scrollbar{display:none}
+.filter-pill{padding:6px 16px;border-radius:99px;font-size:13px;font-weight:600;border:none;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s}
+.filter-pill.active{background:var(--accent);color:#0F0F0F;font-weight:700}
+.filter-pill.inactive{background:var(--surface);color:var(--secondary)}
+
+/* responsive */
+@media(max-width:900px){.phones-row{justify-content:flex-start}}
+</style>
+</head>
+<body>
+
+<div class="showcase">
+  <!-- HEADER -->
+  <div class="showcase-header">
+    <div class="brand-chip">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C8A96E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>ShootPlan</span>
+      <small>UI MOCKUP</small>
+    </div>
+    <h1 class="main-title">Professional Fotosuratchi<br><em>Ilovasi Dizayni</em></h1>
+    <p class="main-sub">O'zbek tilidagi mobil ilova — 5 ta ekran, to'liq interaktiv prototip. Dark theme, gold accent.</p>
+  </div>
+
+  <!-- 5 STATIC PHONE FRAMES -->
+  <div class="phones-row" id="phones-row">
+    <!-- Phones injected by JS -->
+  </div>
+
+  <!-- INTERACTIVE SECTION -->
+  <div class="section-title">
+    <div class="gold-chip">✦ INTERAKTIV PROTOTIP</div>
+    <h2>To'liq interaktiv versiya</h2>
+    <p>Tablarni bosing, syomkalarni tanlang, modal va tafsilotlarni oching</p>
+  </div>
+
+  <div id="interactive-phone" class="phone" style="box-shadow:0 0 0 1px #333,0 60px 120px rgba(200,169,110,.08),0 40px 80px rgba(0,0,0,.8)">
+    <!-- Interactive app injected here -->
+  </div>
+
+  <!-- DESIGN TOKENS -->
+  <div class="section-title" style="margin-top:72px">
+    <h2>Dizayn Tokenlar</h2>
+  </div>
+  <div class="token-grid">
+    <div class="token-card"><div class="token-swatch" style="background:#0F0F0F;border-bottom:1px solid #222"></div><div class="token-info"><b>Background</b><code>#0F0F0F</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#1A1A1A;border-bottom:1px solid #2a2a2a"></div><div class="token-info"><b>Surface</b><code>#1A1A1A</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#242424;border-bottom:1px solid #333"></div><div class="token-info"><b>Elevated</b><code>#242424</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#C8A96E"></div><div class="token-info"><b>Accent Gold</b><code>#C8A96E</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#4CAF78"></div><div class="token-info"><b>Success</b><code>#4CAF78</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#F5A623"></div><div class="token-info"><b>Warning</b><code>#F5A623</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#E05252"></div><div class="token-info"><b>Danger</b><code>#E05252</code></div></div>
+    <div class="token-card"><div class="token-swatch" style="background:#5A5A5A;border-bottom:1px solid #444"></div><div class="token-info"><b>Muted</b><code>#5A5A5A</code></div></div>
+  </div>
+
+  <p style="color:#2a2a2a;font-size:12px;margin-top:56px;text-align:center">ShootPlan UI Mockup · Vanilla HTML/CSS/JS · O'zbek tili · Dark Theme</p>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════════
+let SHOOTS = JSON.parse(localStorage.getItem('shootplan_index_data')) || [];
+const TYPE_CLS = {Wedding:"badge-wedding",Portrait:"badge-portrait",Commercial:"badge-commercial",Video:"badge-video"};
+const STATUS_CLS = {Tasdiqlangan:"status-confirmed",Kutilmoqda:"status-pending",Yakunlangan:"status-done"};
+const SHOOT_DAYS = {24:0,26:1,28:2,30:3};
+
+// ═══════════════════════════════════════════════════════════
+// SVG ICONS
+// ═══════════════════════════════════════════════════════════
+const SVG = {
+  camera:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
+  bell:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+  plus:`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  search:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  cal:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  pin:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+  home:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  calNav:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  users:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  user:`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  chevL:`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
+  chevR:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
+  phone:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+  msg:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+  map:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>`,
+  edit:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  set:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9"/></svg>`,
+  logout:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+  star:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  share:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>`,
+  clock:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  trend:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+};
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function el(tag, cls='', html='', attrs={}) {
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(html) e.innerHTML = html;
+  Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v));
+  return e;
+}
+function statusBar() {
+  const d = el('div','statusbar');
+  d.innerHTML = `<span style="letter-spacing:-0.3px">09:41</span>
+  <div style="display:flex;gap:6px;align-items:center">
+    <svg width="16" height="11" viewBox="0 0 20 14" fill="currentColor">
+      <rect x="0" y="6" width="3" height="8" rx="1" opacity=".35"/>
+      <rect x="4.5" y="4" width="3" height="10" rx="1" opacity=".6"/>
+      <rect x="9" y="1.5" width="3" height="12.5" rx="1" opacity=".8"/>
+      <rect x="13.5" y="0" width="3" height="14" rx="1"/>
+    </svg>
+    <svg width="14" height="11" viewBox="0 0 24 18" fill="currentColor">
+      <path d="M12 4C6.5 4 1.7 6.5 0 10.5L3 14C4.5 11 7.9 9 12 9s7.5 2 9 5l3-3.5C22.3 6.5 17.5 4 12 4z"/>
+      <path d="M12 9c-3.5 0-6.5 1.5-8 4L7 16c1-1.5 2.8-2.5 5-2.5s4 1 5 2.5l3-3C18.5 10.5 15.5 9 12 9z" opacity=".6"/>
+      <circle cx="12" cy="17" r="2"/>
+    </svg>
+    <div style="width:21px;height:10px;border:1.5px solid rgba(255,255,255,.6);border-radius:3px;padding:1.5px;display:flex;">
+      <div style="background:#F5F5F5;width:74%;border-radius:1px;"></div>
+    </div>
+  </div>`;
+  return d;
+}
+
+function avatar(initials, color, size=44) {
+  const d = el('div');
+  Object.assign(d.style,{
+    width:size+'px',height:size+'px',borderRadius:'50%',flexShrink:0,
+    background:`linear-gradient(135deg,${color}22,${color}44)`,
+    border:`1.5px solid ${color}55`,
+    display:'flex',alignItems:'center',justifyContent:'center',
+    fontWeight:800,fontSize:Math.round(size/3.2)+'px',color,
+    letterSpacing:'-0.5px'
+  });
+  d.textContent = initials;
+  return d;
+}
+
+function typeBadge(type) {
+  const s = el('span','badge '+(TYPE_CLS[type]||'badge-other'));
+  s.textContent = type;
+  return s;
+}
+
+function statusTag(status) {
+  const s = el('span','status-tag '+(STATUS_CLS[status]||'status-done'));
+  s.textContent = status;
+  return s;
+}
+
+function bottomNav(active) {
+  const nav = el('div','bottomnav');
+  [
+    {id:'home', icon:SVG.home, label:'Asosiy'},
+    {id:'calendar', icon:SVG.calNav, label:'Jadval'},
+    {id:'clients', icon:SVG.users, label:'Mijozlar'},
+    {id:'profile', icon:SVG.user, label:'Profil'},
+  ].forEach(item => {
+    const it = el('div','nav-item '+(active===item.id?'active':'inactive'));
+    it.innerHTML = item.icon + `<span>${item.label}</span>`;
+    it.dataset.nav = item.id;
+    nav.appendChild(it);
+  });
+  return nav;
+}
+
+function shootCard(shoot, onTap) {
+  const wrap = el('div');
+  wrap.style.position = 'relative';
+  wrap.style.marginBottom = '12px';
+
+  // swipe actions bg
+  const actions = el('div');
+  Object.assign(actions.style,{
+    position:'absolute',right:0,top:0,bottom:0,display:'flex',borderRadius:'20px',overflow:'hidden',opacity:0,transition:'opacity .25s'
+  });
+  actions.innerHTML = `
+    <div style="background:#1d3558;width:68px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:700;color:#60a5fa;cursor:pointer">${SVG.edit}<span>Edit</span></div>
+    <div style="background:rgba(224,82,82,.18);width:68px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:700;color:#E05252;cursor:pointer;border-radius:0 20px 20px 0">${SVG.trash}<span>O'chir</span></div>`;
+  wrap.appendChild(actions);
+
+  const card = el('div','card');
+  Object.assign(card.style, {borderRadius:'20px',margin:0,transition:'transform .25s'});
+
+  // top row
+  const top = el('div');
+  Object.assign(top.style,{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'12px'});
+  const left = el('div');
+  Object.assign(left.style,{display:'flex',alignItems:'center',gap:'12px'});
+  left.appendChild(avatar(shoot.initials, shoot.color));
+  const nameWrap = el('div');
+  const nameEl = el('div');
+  Object.assign(nameEl.style,{fontWeight:700,fontSize:'15px',marginBottom:'4px'});
+  nameEl.textContent = shoot.name;
+  nameWrap.appendChild(nameEl);
+  nameWrap.appendChild(typeBadge(shoot.type));
+  left.appendChild(nameWrap);
+  top.appendChild(left);
+  top.appendChild(statusTag(shoot.status));
+  card.appendChild(top);
+
+  // info rows
+  const info = el('div');
+  info.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+  info.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#9A9A9A">
+      <span style="color:#C8A96E66;display:flex">${SVG.cal}</span>
+      <span>${shoot.date} · ${shoot.time} · ${shoot.dur}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#9A9A9A">
+      <span style="color:#C8A96E66;display:flex">${SVG.pin}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px">${shoot.loc}</span>
+    </div>
+    <div style="display:flex;justify-content:flex-end">
+      <span style="font-size:13px;font-weight:700;color:#C8A96E">${shoot.price} so'm</span>
+    </div>`;
+  card.appendChild(info);
+  wrap.appendChild(card);
+
+  // swipe logic (touch + mouse)
+  let startX = null, swiped = false;
+  const doSwipe = (on) => {
+    swiped = on;
+    card.style.transform = on ? 'translateX(-80px)' : 'translateX(0)';
+    actions.style.opacity = on ? '1' : '0';
+  };
+  card.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive:true});
+  card.addEventListener('touchend', e => {
+    if(startX !== null) {
+      const dx = e.changedTouches[0].clientX - startX;
+      if(dx < -40) doSwipe(true);
+      else if(dx > 20) doSwipe(false);
+    }
+    startX = null;
+  }, {passive:true});
+  card.addEventListener('click', () => {
+    if(swiped) { doSwipe(false); return; }
+    if(onTap) onTap();
+  });
+  return wrap;
+}
+
+function skeletonCard() {
+  const c = el('div');
+  c.style.cssText = 'background:#1A1A1A;border-radius:20px;padding:16px;margin-bottom:12px';
+  c.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="skeleton" style="width:44px;height:44px;border-radius:50%"></div>
+      <div style="flex:1">
+        <div class="skeleton" style="width:60%;height:13px;margin-bottom:8px"></div>
+        <div class="skeleton" style="width:30%;height:10px"></div>
+      </div>
+    </div>
+    <div class="skeleton" style="width:80%;height:10px;margin-bottom:8px"></div>
+    <div class="skeleton" style="width:55%;height:10px"></div>`;
+  return c;
+}
+
+function infoRow(iconSvg, label, value, accentColor) {
+  const row = el('div','info-row');
+  const iconWrap = el('div','info-icon');
+  iconWrap.innerHTML = `<span style="color:#C8A96E;display:flex">${iconSvg}</span>`;
+  const textWrap = el('div');
+  textWrap.innerHTML = `<div class="info-label">${label}</div><div class="info-value" style="color:${accentColor||'#F5F5F5'}">${value}</div>`;
+  row.appendChild(iconWrap);
+  row.appendChild(textWrap);
+  return row;
+}
+
+function makeFab(onClick) {
+  const btn = el('button','fab');
+  btn.innerHTML = SVG.plus;
+  btn.style.color = '#0F0F0F';
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function makeToast(container) {
+  const t = el('div','toast');
+  container.appendChild(t);
+  return {
+    show(msg, icon='✓') {
+      t.innerHTML = `<span style="font-size:18px">${icon}</span><span>${msg}</span>`;
+      t.classList.add('show');
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCREEN BUILDERS
+// ═══════════════════════════════════════════════════════════
+function buildHomeScreen(phone, callbacks) {
+  const scr = el('div','screen');
+  scr.appendChild(statusBar());
+
+  // Gradient accent
+  const acc = el('div');
+  acc.style.cssText = 'position:absolute;top:0;right:0;width:200px;height:200px;background:radial-gradient(circle,rgba(200,169,110,.07) 0%,transparent 70%);pointer-events:none';
+  scr.appendChild(acc);
+
+  // Header
+  const hdr = el('div');
+  hdr.style.cssText = 'padding:4px 18px 0;flex-shrink:0';
+  hdr.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#C8A96E18,#C8A96E38);display:flex;align-items:center;justify-content:center;border:1px solid #C8A96E30;color:#C8A96E">${SVG.camera}</div>
+        <div>
+          <div style="font-weight:900;font-size:18px;letter-spacing:-0.5px">ShootPlan</div>
+          <div style="font-size:10px;color:#C8A96E;font-weight:700;letter-spacing:1px;margin-top:-2px">PHOTO STUDIO</div>
+        </div>
+      </div>
+      <div style="position:relative;cursor:pointer">
+        <div style="width:40px;height:40px;border-radius:12px;background:#1A1A1A;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.06);color:#F5F5F5">${SVG.bell}</div>
+        <div style="position:absolute;top:8px;right:8px;width:9px;height:9px;background:#E05252;border-radius:50%;border:2px solid #0F0F0F"></div>
+      </div>
+    </div>
+    <div style="position:relative;margin-bottom:12px">
+      <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#5A5A5A;display:flex;pointer-events:none">${SVG.search}</div>
+      <input style="width:100%;background:#1A1A1A;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:0 14px 0 40px;height:44px;font-size:13px;color:#F5F5F5;font-family:inherit;outline:none" placeholder="Mijoz ismi yoki manzil bo'yicha qidiring..." readonly/>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      ${[['5','Faol'],['3','Bu hafta'],['13.7M','Daromad']].map(([v,l],i)=>`
+        <div style="flex:1;background:#1A1A1A;border-radius:12px;padding:10px 8px;border:1px solid rgba(255,255,255,.05);text-align:center">
+          <div style="font-weight:800;font-size:15px;color:${i===2?'#C8A96E':'#F5F5F5'}">${v}</div>
+          <div style="font-size:10px;color:#5A5A5A;font-weight:600;margin-top:2px">${l}</div>
+        </div>`).join('')}
+    </div>`;
+  scr.appendChild(hdr);
+
+  // Filter tabs
+  const filterRow = el('div','filter-row');
+  const filters = ['Hammasi','Portrait','Wedding','Commercial','Video'];
+  let activeFilter = 'Hammasi';
+  filters.forEach(f => {
+    const pill = el('button','filter-pill '+(f===activeFilter?'active':'inactive'));
+    pill.textContent = f;
+    pill.addEventListener('click', () => {
+      activeFilter = f;
+      filterRow.querySelectorAll('.filter-pill').forEach(p => {
+        p.className = 'filter-pill ' + (p.textContent===f?'active':'inactive');
+      });
+      renderList();
+    });
+    filterRow.appendChild(pill);
+  });
+  scr.appendChild(filterRow);
+
+  // Section label
+  const secLbl = el('div');
+  secLbl.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:0 18px;margin-bottom:10px;flex-shrink:0';
+  secLbl.innerHTML = `<span style="font-size:12px;font-weight:700;color:#555;letter-spacing:.5px" id="shoot-count-lbl">5 TA SYOMKA</span><span style="font-size:12px;color:#C8A96E;font-weight:600;cursor:pointer">Barchasi →</span>`;
+  scr.appendChild(secLbl);
+
+  // List area
+  const listArea = el('div','scroll-area');
+  scr.appendChild(listArea);
+
+  // Loading skeletons
+  [0,1,2].forEach(() => listArea.appendChild(skeletonCard()));
+  const renderList = () => {
+    const filtered = activeFilter==='Hammasi' ? SHOOTS : SHOOTS.filter(s=>s.type===activeFilter);
+    listArea.innerHTML = '';
+    document.getElementById('shoot-count-lbl') && (document.getElementById('shoot-count-lbl').textContent = `${filtered.length} TA SYOMKA`);
+    filtered.forEach((shoot, i) => {
+      const c = shootCard(shoot, () => callbacks.onDetail(shoot));
+      c.style.opacity = 0;
+      c.style.transform = 'translateY(8px)';
+      listArea.appendChild(c);
+      setTimeout(() => {
+        c.style.transition = 'opacity .3s ease, transform .3s ease';
+        c.style.opacity = 1; c.style.transform = 'none';
+      }, i*60);
+    });
+  };
+  setTimeout(() => { listArea.innerHTML = ''; renderList(); }, 1400);
+
+  // Nav + FAB + Toast
+  scr.appendChild(bottomNav('home'));
+  scr.appendChild(makeFab(callbacks.onAdd));
+  return scr;
+}
+
+function buildAddModal(phone, onClose, onSave) {
+  const overlay = el('div','modal-overlay');
+  overlay.addEventListener('click', e => { if(e.target===overlay) onClose(); });
+
+  const sheet = el('div','modal-sheet');
+  sheet.innerHTML = `
+    <div class="drag-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-shrink:0">
+      <div>
+        <div style="font-size:20px;font-weight:800">Yangi syomka</div>
+        <div style="font-size:12px;color:#555;margin-top:2px">Barcha * maydonlarni to'ldiring</div>
+      </div>
+      <button onclick="this.closest('.modal-overlay').dispatchEvent(new Event('closeModal'))" style="width:32px;height:32px;border-radius:10px;background:#242424;border:none;color:#9A9A9A;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1" id="modal-close-x">×</button>
+    </div>
+    <div class="modal-body">
+      <div>
+        <label class="form-label">Mijoz ismi *</label>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div style="width:44px;height:44px;border-radius:50%;background:#242424;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1.5px dashed #3a3a3a;color:#5A5A5A">${SVG.user}</div>
+          <input class="form-input" style="flex:1;height:44px" type="text" value="Aziza Rahmatova"/>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Telefon raqam</label>
+        <div class="form-input" style="display:flex;align-items:center;gap:8px;padding:0 14px;height:48px">
+          <span style="font-size:18px">🇺🇿</span>
+          <span style="color:#9A9A9A;font-weight:600;font-size:13px">+998</span>
+          <div style="width:1px;height:16px;background:#2a2a2a"></div>
+          <input style="background:none;border:none;outline:none;flex:1;color:#F5F5F5;font-size:14px;font-family:inherit" value="97 456 78 90"/>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div style="flex:1">
+          <label class="form-label">Tur *</label>
+          <select class="form-input form-select" style="height:48px">
+            <option>Portrait</option><option>Wedding</option><option>Commercial</option><option>Video</option><option>Other</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="form-label">Sana *</label>
+          <div class="form-input" style="display:flex;align-items:center;gap:6px;padding:0 12px;height:48px;color:#C8A96E;font-size:13px;font-weight:600">
+            ${SVG.cal} 12 Iyul, 15:00
+          </div>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Manzil *</label>
+        <div style="position:relative">
+          <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#C8A96E;display:flex">${SVG.pin}</div>
+          <input class="form-input" style="padding-left:38px;height:48px" value="Amir Temur xiyoboni, Toshkent"/>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Narx (UZS)</label>
+        <div class="form-input" style="display:flex;align-items:center;gap:8px;padding:0 14px;height:48px">
+          <span style="color:#C8A96E;font-weight:700;font-size:14px">so'm</span>
+          <div style="width:1px;height:16px;background:#2a2a2a"></div>
+          <input style="background:none;border:none;outline:none;flex:1;color:#C8A96E;font-size:14px;font-weight:700;font-family:inherit" value="1,500,000"/>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Izoh</label>
+        <textarea class="form-input" style="height:72px;padding:12px 14px" placeholder="Qo'shimcha ma'lumotlar...">Tabiat fonida maxsus portret suratlar kerak.</textarea>
+      </div>
+      <div>
+        <label class="form-label">Status</label>
+        <div id="status-toggle" style="display:flex;background:#1A1A1A;border-radius:14px;padding:4px;gap:4px;border:1px solid rgba(255,255,255,.05)">
+          <button data-val="Kutilmoqda" style="flex:1;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;background:#242424;color:#F5A623;transition:all .2s">Kutilmoqda</button>
+          <button data-val="Tasdiqlangan" style="flex:1;padding:10px 0;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;font-family:inherit;background:transparent;color:#5A5A5A;transition:all .2s">Tasdiqlangan</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0">
+      <button class="btn btn-ghost" id="modal-cancel-btn" style="flex:1">Bekor qilish</button>
+      <button class="btn btn-gold" id="modal-save-btn" style="flex:1.5">Saqlash ✓</button>
+    </div>`;
+
+  // Status toggle interaction
+  sheet.querySelectorAll('#status-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sheet.querySelectorAll('#status-toggle button').forEach(b => {
+        b.style.background='transparent'; b.style.color='#5A5A5A';
+      });
+      btn.style.background = '#242424';
+      btn.style.color = btn.dataset.val==='Tasdiqlangan'?'#4CAF78':'#F5A623';
+    });
+  });
+
+  sheet.querySelector('#modal-close-x').addEventListener('click', onClose);
+  sheet.querySelector('#modal-cancel-btn').addEventListener('click', onClose);
+  sheet.querySelector('#modal-save-btn').addEventListener('click', onSave);
+
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+function buildDetailScreen(phone, shoot, onBack) {
+  const scr = el('div','screen');
+  scr.style.overflowY = 'auto';
+
+  // Hero
+  const hero = el('div');
+  Object.assign(hero.style,{
+    position:'relative',height:'260px',flexShrink:0,overflow:'hidden',
+    background:`linear-gradient(135deg, ${shoot.color}1a 0%, #0a0a0a 100%)`
+  });
+  hero.classList.add('hero-bg');
+  hero.innerHTML = `<div style="position:absolute;inset:0;background:linear-gradient(to top,#0F0F0F 0%,rgba(15,15,15,.6) 50%,transparent 100%)"></div>`;
+  // top bar in hero
+  const heroTop = el('div');
+  heroTop.style.cssText = 'position:absolute;top:0;width:100%;z-index:5';
+  const sbClone = statusBar();
+  heroTop.appendChild(sbClone);
+  const heroBtns = el('div');
+  heroBtns.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:4px 18px';
+  heroBtns.innerHTML = `
+    <button style="width:40px;height:40px;border-radius:14px;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#F5F5F5" id="detail-back">${SVG.chevL}</button>
+    <button style="padding:8px 16px;border-radius:20px;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);color:#C8A96E;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px">${SVG.edit} Tahrirlash</button>`;
+  heroTop.appendChild(heroBtns);
+  hero.appendChild(heroTop);
+  // hero bottom info
+  const heroInfo = el('div');
+  heroInfo.style.cssText = 'position:absolute;bottom:16px;left:18px;right:18px;z-index:5;display:flex;align-items:flex-end;gap:14px';
+  const av = avatar(shoot.initials, shoot.color, 70);
+  const heroText = el('div');
+  const tb = typeBadge(shoot.type);
+  const nameEl = el('div');
+  nameEl.style.cssText = 'font-weight:900;font-size:22px;letter-spacing:-0.5px;margin:4px 0';
+  nameEl.textContent = shoot.name;
+  heroText.appendChild(tb);
+  heroText.appendChild(nameEl);
+  heroText.appendChild(statusTag(shoot.status));
+  heroInfo.appendChild(av);
+  heroInfo.appendChild(heroText);
+  hero.appendChild(heroInfo);
+  scr.appendChild(hero);
+
+  // Action buttons
+  const actions = el('div');
+  actions.style.cssText = 'display:flex;gap:10px;padding:16px 18px 0;flex-shrink:0';
+  [{icon:SVG.phone,label:"Qo'ng'iroq",bg:'rgba(76,175,120,.12)',color:'#4CAF78'},
+   {icon:SVG.msg,label:'Xabar',bg:'rgba(96,165,250,.12)',color:'#60a5fa'},
+   {icon:SVG.map,label:'Xarita',bg:'rgba(200,169,110,.12)',color:'#C8A96E'}
+  ].forEach(a => {
+    const btn = el('button','btn');
+    btn.style.cssText = `flex:1;height:52px;flex-direction:column;gap:4px;font-size:11px;background:${a.bg};color:${a.color};border:none;border-radius:16px`;
+    btn.innerHTML = `${a.icon}<span>${a.label}</span>`;
+    actions.appendChild(btn);
+  });
+  scr.appendChild(actions);
+
+  // Content
+  const content = el('div');
+  content.style.cssText = 'padding:14px 18px 28px;display:flex;flex-direction:column;gap:12px';
+
+  // Info card 1
+  const c1 = el('div');
+  c1.style.cssText = 'background:#1A1A1A;border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;gap:14px';
+  c1.appendChild(infoRow(SVG.phone,'Telefon', shoot.phone));
+  c1.appendChild(el('div','sep'));
+  c1.appendChild(infoRow(SVG.cal,'Sana va vaqt', `${shoot.date} · ${shoot.time}`));
+  c1.appendChild(el('div','sep'));
+  c1.appendChild(infoRow(SVG.clock,'Davomiylik', shoot.dur));
+  content.appendChild(c1);
+
+  // Map card
+  const mc = el('div');
+  mc.style.cssText = 'background:#1A1A1A;border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.05)';
+  const locRow = el('div','info-row');
+  locRow.style.marginBottom = '12px';
+  const licIcon = el('div','info-icon'); licIcon.innerHTML = `<span style="color:#C8A96E;display:flex">${SVG.pin}</span>`;
+  const locText = el('div');
+  locText.innerHTML = `<div class="info-label">Manzil</div><div class="info-value">${shoot.loc}</div>`;
+  locRow.appendChild(licIcon); locRow.appendChild(locText);
+  mc.appendChild(locRow);
+  const mapBox = el('div');
+  mapBox.style.cssText = 'height:88px;border-radius:14px;background:linear-gradient(135deg,#111d11,#111121);border:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden';
+  mapBox.innerHTML = `<div style="position:absolute;inset:0;background-image:linear-gradient(rgba(200,169,110,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(200,169,110,.04) 1px,transparent 1px);background-size:28px 28px"></div><div style="width:12px;height:12px;border-radius:50%;background:#C8A96E;box-shadow:0 0 0 5px rgba(200,169,110,.2),0 0 0 10px rgba(200,169,110,.1);position:relative"></div>`;
+  mc.appendChild(mapBox);
+  content.appendChild(mc);
+
+  // Price + status
+  const pc = el('div');
+  pc.style.cssText = 'background:#1A1A1A;border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center';
+  pc.innerHTML = `
+    <div><div style="font-size:11px;color:#6a6a6a;font-weight:600;margin-bottom:4px">Narx</div>
+      <div style="font-size:22px;font-weight:900;color:#C8A96E;letter-spacing:-.5px">${shoot.price} <span style="font-size:13px;color:#9A9A9A;font-weight:600">so'm</span></div>
+    </div>
+    <div style="text-align:right"><div style="font-size:11px;color:#6a6a6a;font-weight:600;margin-bottom:4px">Status</div></div>`;
+  const st = statusTag(shoot.status);
+  pc.querySelector('div:last-child').appendChild(st);
+  content.appendChild(pc);
+
+  // Notes
+  if(shoot.notes) {
+    const nc = el('div');
+    nc.style.cssText = 'background:#1A1A1A;border-radius:20px;padding:16px;border:1px solid rgba(255,255,255,.05)';
+    nc.innerHTML = `<div style="font-size:11px;color:#6a6a6a;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Izoh</div>
+      <div style="font-size:13px;color:rgba(245,245,245,.8);line-height:1.7">${shoot.notes}</div>`;
+    content.appendChild(nc);
+  }
+
+  // Buttons
+  const updateBtn = el('button','btn btn-gold');
+  updateBtn.textContent = 'Statusni yangilash';
+  updateBtn.style.width = '100%';
+  const delBtn = el('button','btn btn-danger');
+  delBtn.textContent = "O'chirish";
+  delBtn.style.cssText += ';width:100%;margin-top:8px;margin-bottom:24px';
+  content.appendChild(updateBtn);
+  content.appendChild(delBtn);
+
+  scr.appendChild(content);
+
+  scr.querySelector('#detail-back').addEventListener('click', onBack);
+  return scr;
+}
+
+function buildCalendarScreen(phone, callbacks) {
+  const scr = el('div','screen');
+  scr.appendChild(statusBar());
+
+  const topArea = el('div');
+  topArea.style.cssText = 'padding:4px 18px 12px;flex-shrink:0';
+  topArea.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:900;font-size:22px;letter-spacing:-.5px">Jadval</div>
+      <div style="width:36px;height:36px;border-radius:12px;background:#1A1A1A;border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#C8A96E">${SVG.plus}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;background:#1A1A1A;border-radius:16px;padding:10px 16px;border:1px solid rgba(255,255,255,.05)">
+      <button style="background:none;border:none;color:#9A9A9A;cursor:pointer;display:flex;align-items:center">${SVG.chevL}</button>
+      <span style="font-weight:700;font-size:16px">Iyun 2026</span>
+      <button style="background:none;border:none;color:#9A9A9A;cursor:pointer;display:flex;align-items:center">${SVG.chevR}</button>
+    </div>`;
+
+  // Day headers
+  const dayHeaders = el('div','cal-grid');
+  dayHeaders.style.cssText = 'padding:0;margin-bottom:6px';
+  ['Du','Se','Ch','Pa','Ju','Sh','Ya'].forEach(d => {
+    const h = el('div');
+    h.style.cssText = 'font-size:11px;font-weight:700;color:#5A5A5A;padding:4px 0;text-align:center';
+    h.textContent = d;
+    dayHeaders.appendChild(h);
+  });
+  topArea.appendChild(dayHeaders);
+
+  // Days grid
+  let selDay = 24;
+  const calGrid = el('div','cal-grid');
+  const renderCal = () => {
+    calGrid.innerHTML = '';
+    // prev month fillers
+    [29,30].forEach(d => {
+      const cell = el('div'); cell.style.cssText = 'height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#2a2a2a'; cell.textContent=d; calGrid.appendChild(cell);
+    });
+    for(let d=1;d<=30;d++) {
+      const hasShoot = SHOOT_DAYS.hasOwnProperty(d);
+      const isSel = d===selDay;
+      const cell = el('div','cal-day');
+      const inner = el('div','cal-day-inner');
+      inner.textContent = d;
+      Object.assign(inner.style,{
+        fontWeight: isSel||hasShoot?700:400,
+        background: isSel?'#C8A96E':'transparent',
+        color: isSel?'#0F0F0F':hasShoot?'#F5F5F5':'#9A9A9A'
+      });
+      cell.appendChild(inner);
+      if(hasShoot && !isSel) { const dot=el('div','cal-dot'); cell.appendChild(dot); }
+      cell.addEventListener('click', () => { selDay=d; renderCal(); renderDayList(); });
+      calGrid.appendChild(cell);
+    }
+    [1,2,3].forEach(d => {
+      const cell = el('div'); cell.style.cssText='height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#2a2a2a'; cell.textContent=d; calGrid.appendChild(cell);
+    });
+  };
+  renderCal();
+  topArea.appendChild(calGrid);
+  scr.appendChild(topArea);
+
+  // Day list
+  const listArea = el('div','scroll-area');
+  const dayTitle = el('div');
+  dayTitle.style.cssText = 'font-size:12px;font-weight:700;color:#5A5A5A;margin-bottom:12px;letter-spacing:.5px';
+  listArea.appendChild(dayTitle);
+  const dayCards = el('div');
+  listArea.appendChild(dayCards);
+
+  const renderDayList = () => {
+    const shootIdx = SHOOT_DAYS[selDay];
+    dayTitle.textContent = `${selDay} IYUN · ${shootIdx!==undefined?'1 TA SYOMKA':"SYOMKA YO'Q"}`;
+    dayCards.innerHTML = '';
+    if(shootIdx !== undefined) {
+      const c = shootCard(SHOOTS[shootIdx], () => callbacks.onDetail(SHOOTS[shootIdx]));
+      dayCards.appendChild(c);
+    } else {
+      dayCards.innerHTML = `<div style="text-align:center;padding:40px 0;color:#3a3a3a">
+        <div style="font-size:36px;margin-bottom:10px">📅</div>
+        <div style="font-size:14px">Bu kunda syomka yo'q</div></div>`;
+    }
+  };
+  renderDayList();
+  scr.appendChild(listArea);
+  scr.appendChild(bottomNav('calendar'));
+  return scr;
+}
+
+function buildClientsScreen(phone, callbacks) {
+  const scr = el('div','screen');
+  scr.appendChild(statusBar());
+
+  const hdr = el('div');
+  hdr.style.cssText = 'padding:4px 18px 12px;flex-shrink:0';
+  hdr.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-weight:900;font-size:22px;letter-spacing:-.5px">Mijozlar</div>
+      <div style="color:#9A9A9A;display:flex">${SVG.search}</div>
+    </div>
+    <div style="position:relative;margin-bottom:4px">
+      <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#5A5A5A;display:flex">${SVG.search}</div>
+      <input style="width:100%;background:#1A1A1A;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:0 14px 0 40px;height:44px;font-size:13px;color:#F5F5F5;font-family:inherit;outline:none" placeholder="Mijoz qidirish..." readonly/>
+    </div>`;
+  scr.appendChild(hdr);
+
+  const list = el('div','scroll-area');
+  const lbl = el('div');
+  lbl.style.cssText = 'font-size:12px;font-weight:700;color:#5A5A5A;margin-bottom:12px;letter-spacing:.5px';
+  lbl.textContent = `BARCHA MIJOZLAR (${SHOOTS.length})`;
+  list.appendChild(lbl);
+
+  SHOOTS.forEach((s, i) => {
+    const row = el('div');
+    row.style.cssText = 'background:#1A1A1A;border-radius:18px;padding:14px 16px;margin-bottom:10px;border:1px solid rgba(255,255,255,.05);display:flex;align-items:center;gap:14px;cursor:pointer;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s,all .2s';
+    row.style.transitionDelay = i*50+'ms';
+    const av = avatar(s.initials, s.color, 48);
+    const mid = el('div'); mid.style.flex=1;
+    mid.innerHTML = `<div style="font-weight:700;font-size:14px;margin-bottom:3px">${s.name}</div><div style="font-size:12px;color:#6a6a6a">${s.phone}</div>`;
+    const right = el('div'); right.style.textAlign='right';
+    right.appendChild(typeBadge(s.type));
+    const priceEl = el('div');
+    priceEl.style.cssText = 'font-size:12px;color:#C8A96E;font-weight:700;margin-top:4px';
+    priceEl.textContent = s.price+' so\'m';
+    right.appendChild(priceEl);
+    row.appendChild(av); row.appendChild(mid); row.appendChild(right);
+    row.addEventListener('click', () => callbacks.onDetail(s));
+    list.appendChild(row);
+    requestAnimationFrame(() => setTimeout(() => { row.style.opacity=1; row.style.transform='none'; }, i*60));
+  });
+  scr.appendChild(list);
+  scr.appendChild(bottomNav('clients'));
+  return scr;
+}
+
+function buildProfileScreen(phone) {
+  const scr = el('div','screen');
+  scr.style.overflowY = 'auto';
+  scr.appendChild(statusBar());
+
+  let notifOn = true;
+  const content = el('div');
+  content.style.cssText = 'padding:0 18px 100px';
+
+  // Profile header
+  const phdr = el('div');
+  phdr.style.cssText = 'text-align:center;padding:8px 0 22px;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:20px;position:relative';
+  phdr.innerHTML = `
+    <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:200px;height:100px;background:radial-gradient(ellipse,rgba(200,169,110,.1) 0%,transparent 70%);pointer-events:none"></div>
+    <div style="position:relative;display:inline-block;margin-bottom:12px">
+      <div style="width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#C8A96E25,#C8A96E55);border:3px solid #C8A96E44;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:#C8A96E;margin:0 auto">D</div>
+      <div style="position:absolute;bottom:-4px;right:-4px;background:linear-gradient(135deg,#d4b47a,#C8A96E);border-radius:8px;padding:3px 7px;font-size:9px;font-weight:900;color:#0F0F0F;border:2px solid #0F0F0F;letter-spacing:.5px">PRO</div>
+    </div>
+    <div style="font-weight:900;font-size:20px;letter-spacing:-.5px">Dilshod Yo'ldoshev</div>
+    <div style="color:#6a6a6a;font-size:13px;margin-top:3px">@dilshod_photo · Toshkent</div>
+    <div style="display:flex;justify-content:center;gap:12px;margin-top:10px">
+      <span style="font-size:12px;color:#9A9A9A;background:#1A1A1A;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.06)">📷 Fotosuratchi</span>
+      <span style="font-size:12px;color:#9A9A9A;background:#1A1A1A;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.06)">⭐ 4.9 reyting</span>
+    </div>`;
+  content.appendChild(phdr);
+
+  // Stats
+  const statsRow = el('div');
+  statsRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px';
+  [{v:'12',l:'Bu oy',s:'ta syomka',c:'#F5F5F5'},{v:'48',l:'Jami',s:'ta syomka',c:'#F5F5F5'},{v:'24.5M',l:'Daromad',s:"so'm",c:'#C8A96E'}].forEach(st => {
+    const d = el('div');
+    d.style.cssText = 'background:#1A1A1A;border-radius:16px;padding:14px 8px;text-align:center;border:1px solid rgba(255,255,255,.05)';
+    d.innerHTML = `<div style="font-weight:900;font-size:18px;color:${st.c};letter-spacing:-.5px">${st.v}</div><div style="font-size:9px;color:#4a4a4a;font-weight:700;margin-top:2px;text-transform:uppercase;letter-spacing:.5px">${st.l}</div><div style="font-size:9px;color:#333;margin-top:1px">${st.s}</div>`;
+    statsRow.appendChild(d);
+  });
+  content.appendChild(statsRow);
+
+  // Progress
+  const prog = el('div');
+  prog.style.cssText = 'background:#1A1A1A;border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.05)';
+  prog.innerHTML = `
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <span style="font-size:12px;font-weight:700;color:#9A9A9A">Oylik maqsad</span>
+      <span style="font-size:12px;font-weight:700;color:#C8A96E">75%</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:0%" id="prog-fill"></div></div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px">
+      <span style="font-size:11px;color:#5A5A5A">13,700,000 so'm</span>
+      <span style="font-size:11px;color:#5A5A5A">Maqsad: 20M</span>
+    </div>`;
+  content.appendChild(prog);
+  setTimeout(() => { const f=prog.querySelector('#prog-fill'); if(f) f.style.width='75%'; }, 400);
+
+  // Settings list
+  const settings = [
+    {icon:'⚙️', label:'Sozlamalar', sub:'Ilova parametrlari', chevron:true},
+    {icon:'🔔', label:'Bildirishnomalar', sub:'Push xabarnomalar', toggle:true},
+    {icon:'⭐', label:'Ilovani baholash', sub:"App Store'ga baho bering", chevron:true},
+    {icon:'📤', label:"Ma'lumotni eksport", sub:'CSV, PDF formatlar', chevron:true},
+  ];
+  const slist = el('div'); slist.style.cssText='display:flex;flex-direction:column;gap:8px;margin-bottom:12px';
+  settings.forEach(item => {
+    const row = el('div');
+    row.style.cssText = 'background:#1A1A1A;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:14px;border:1px solid rgba(255,255,255,.05);cursor:pointer;transition:background .2s';
+    const iconBox = el('div');
+    iconBox.style.cssText = 'font-size:18px;width:36px;height:36px;background:#242424;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0';
+    iconBox.textContent = item.icon;
+    const mid2 = el('div'); mid2.style.flex=1;
+    mid2.innerHTML = `<div style="font-weight:600;font-size:14px">${item.label}</div><div style="font-size:11px;color:#5A5A5A;margin-top:2px">${item.sub}</div>`;
+    row.appendChild(iconBox); row.appendChild(mid2);
+    if(item.chevron) { const ch=el('div'); ch.style.cssText='color:#3a3a3a;display:flex'; ch.innerHTML=SVG.chevR; row.appendChild(ch); }
+    if(item.toggle) {
+      const tgl = el('div','toggle');
+      tgl.style.background = notifOn?'#C8A96E':'#2a2a2a';
+      const knob = el('div','toggle-knob'); knob.style.left = notifOn?'23px':'3px';
+      tgl.appendChild(knob);
+      tgl.addEventListener('click', e => { e.stopPropagation(); notifOn=!notifOn; tgl.style.background=notifOn?'#C8A96E':'#2a2a2a'; knob.style.left=notifOn?'23px':'3px'; });
+      row.appendChild(tgl);
+    }
+    slist.appendChild(row);
+  });
+  content.appendChild(slist);
+
+  const logoutBtn = el('button','btn btn-danger');
+  logoutBtn.style.cssText += ';width:100%;margin-bottom:24px';
+  logoutBtn.innerHTML = SVG.logout + ' Chiqish';
+  content.appendChild(logoutBtn);
+
+  scr.appendChild(content);
+  scr.appendChild(bottomNav('profile'));
+  return scr;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INTERACTIVE PHONE APP
+// ═══════════════════════════════════════════════════════════
+function createInteractiveApp(container) {
+  let currentScreen = 'home';
+  let detailShoot = null;
+  const screens = {};
+  const toast = makeToast(container);
+
+  const navigate = (scrName) => {
+    Object.values(screens).forEach(s => { if(s&&s.parentNode===container) s.style.display='none'; });
+    if(screens[scrName]) { screens[scrName].style.display='flex'; return; }
+
+    let scr;
+    if(scrName==='home') {
+      scr = buildHomeScreen(container, {
+        onDetail: (shoot) => { detailShoot=shoot; navigate('detail'); },
+        onAdd: () => {
+          const modal = buildAddModal(container, ()=>{ modal.remove(); }, ()=>{ modal.remove(); toast.show('Syomka saqlandi ✓','📸'); });
+          container.appendChild(modal);
+        }
+      });
+      // wire bottomnav
+      scr.querySelectorAll('.nav-item[data-nav]').forEach(it => {
+        it.addEventListener('click', () => { navigate(it.dataset.nav==='clients'?'clients':it.dataset.nav); });
+      });
+    } else if(scrName==='calendar') {
+      scr = buildCalendarScreen(container, { onDetail: (shoot)=>{ detailShoot=shoot; navigate('detail'); } });
+      scr.querySelectorAll('.nav-item[data-nav]').forEach(it => it.addEventListener('click', ()=>navigate(it.dataset.nav==='clients'?'clients':it.dataset.nav)));
+    } else if(scrName==='clients') {
+      scr = buildClientsScreen(container, { onDetail:(shoot)=>{ detailShoot=shoot; navigate('detail'); } });
+      scr.querySelectorAll('.nav-item[data-nav]').forEach(it => it.addEventListener('click', ()=>navigate(it.dataset.nav==='clients'?'clients':it.dataset.nav)));
+    } else if(scrName==='profile') {
+      scr = buildProfileScreen(container);
+      scr.querySelectorAll('.nav-item[data-nav]').forEach(it => it.addEventListener('click', ()=>navigate(it.dataset.nav==='clients'?'clients':it.dataset.nav)));
+    } else if(scrName==='detail') {
+      scr = buildDetailScreen(container, detailShoot, ()=>{ scr.remove(); delete screens['detail']; navigate(currentScreen||'home'); });
+    }
+
+    if(scr) { container.appendChild(scr); screens[scrName]=scr; currentScreen=scrName; }
+  };
+
+  navigate('home');
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATIC PHONE FRAMES (showcase)
+// ═══════════════════════════════════════════════════════════
+function buildStaticPhone(buildFn, label, desc) {
+  const col = el('div','phone-col');
+  const lbl = el('div','phone-label'); lbl.textContent = label; col.appendChild(lbl);
+  const frame = el('div','phone');
+  const scr = buildFn(frame);
+  frame.appendChild(scr);
+  col.appendChild(frame);
+  const d = el('div','phone-desc');
+  d.innerHTML = `<b>${desc.split('·')[0]}</b><small>${desc.split('·')[1]||''}</small>`;
+  col.appendChild(d);
+  return col;
+}
+
+// Populate static phones
+const row = document.getElementById('phones-row');
+
+// Phone 1: Home
+row.appendChild(buildStaticPhone(f => {
+  const s = buildHomeScreen(f, {onDetail:()=>{}, onAdd:()=>{}});
+  return s;
+}, '01 / Asosiy', "Syomkalar ro'yxati · Filter • Qidirish • FAB"));
+
+// Phone 2: Add Modal
+row.appendChild(buildStaticPhone(f => {
+  const wrap = el('div','screen');
+  const home = buildHomeScreen(f, {onDetail:()=>{}, onAdd:()=>{}});
+  home.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column';
+  wrap.appendChild(home);
+  const modal = buildAddModal(f, ()=>{}, ()=>{});
+  modal.style.position = 'absolute';
+  wrap.appendChild(modal);
+  return wrap;
+}, '02 / Yangi Syomka', "Bottom Sheet Modal · Form • Status toggle"));
+
+// Phone 3: Detail
+row.appendChild(buildStaticPhone(f => buildDetailScreen(f, SHOOTS[0], ()=>{}),
+  '03 / Tafsilotlar', "Syomka ma'lumoti · Hero • Actions • Map"));
+
+// Phone 4: Calendar
+row.appendChild(buildStaticPhone(f => buildCalendarScreen(f, {onDetail:()=>{}}),
+  '04 / Jadval', "Oylik kalendar · Gold dots • Day view"));
+
+// Phone 5: Profile
+row.appendChild(buildStaticPhone(f => buildProfileScreen(f),
+  '05 / Profil', "Statistika & sozlamalar · Stats • Toggle • Progress"));
+
+// Interactive phone
+const interactivePhone = document.getElementById('interactive-phone');
+createInteractiveApp(interactivePhone);
+</script>
+</body>
+</html>

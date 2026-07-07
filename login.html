@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ShootPlan</title>
+    <!-- Modern Font: SF Pro like or Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <style>
+        :root {
+            /* iOS Dark Mode & ShootPlan Branding */
+            --bg: #000000;
+            --surface: #1C1C1E;
+            --surface-active: #2C2C2E;
+            --primary: #C8A96E;
+            --primary-active: #E8C98E;
+            --text-main: #FFFFFF;
+            --text-muted: #8E8E93;
+            --error: #FF453A;
+            --success: #32D74B;
+            --border: #38383A;
+            
+            /* Native Sizing & Spacing (8pt grid) */
+            --h-pad: 24px;
+            --radius-btn: 16px;
+            --radius-input: 16px;
+            --min-tap: 56px;
+            
+            /* Safe Areas for iPhone Notch/Dynamic Island */
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            
+            /* Transitions */
+            --spring: cubic-bezier(0.36, 0.66, 0.04, 1);
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            overflow: hidden; /* App container handles scroll */
+            width: 100vw;
+            height: 100dvh;
+        }
+
+        input, button {
+            appearance: none; -webkit-appearance: none; outline: none; border: none;
+        }
+
+        /* App Container (holds all views) */
+        .app-container {
+            position: relative;
+            width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+            background: var(--bg);
+        }
+
+        /* Native View Sliding System */
+        .view {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(100%);
+            transition: transform 0.4s var(--spring);
+            z-index: 1;
+            padding-top: calc(var(--safe-top) + 24px);
+            padding-bottom: calc(var(--safe-bottom) + 24px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            overscroll-behavior-y: none; /* Prevents pull-to-refresh */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
+        }
+
+        .view::-webkit-scrollbar {
+            display: none; /* Chrome, Safari and Opera */
+        }
+
+        .view.active {
+            transform: translateX(0);
+            z-index: 2;
+        }
+        
+        .view.prev {
+            transform: translateX(-30%);
+            z-index: 1;
+            opacity: 0.5;
+            transition: transform 0.4s var(--spring), opacity 0.4s ease;
+        }
+
+        /* Shared Header */
+        .header {
+            padding: 0 var(--h-pad);
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        
+        .back-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 40px; height: 40px;
+            background: var(--surface); border-radius: 50%;
+            color: var(--text-main); margin-bottom: 24px;
+            cursor: pointer; transition: 0.2s;
+            align-self: flex-start;
+        }
+        .back-btn:active { transform: scale(0.92); background: var(--surface-active); }
+
+        .title {
+            font-size: 32px; font-weight: 700; letter-spacing: -1px; margin-bottom: 8px;
+            line-height: 1.2;
+        }
+        
+        .subtitle {
+            font-size: 16px; color: var(--text-muted); font-weight: 400; line-height: 1.4;
+        }
+
+        /* Forms */
+        .form-content {
+            flex: 1;
+            padding: 0 var(--h-pad);
+            display: flex; flex-direction: column; gap: 16px;
+        }
+
+        .input-group {
+            position: relative;
+            display: flex; flex-direction: column; gap: 8px;
+        }
+
+        .input-label {
+            font-size: 14px; font-weight: 500; color: var(--text-muted); margin-left: 4px;
+        }
+
+        .input-field {
+            width: 100%; height: var(--min-tap);
+            background: var(--surface);
+            border: 1.5px solid transparent;
+            border-radius: var(--radius-input);
+            padding: 0 20px;
+            font-size: 17px; color: var(--text-main);
+            transition: all 0.2s ease;
+        }
+
+        .input-field::placeholder { color: #636366; }
+
+        .input-field:focus {
+            background: var(--bg);
+            border-color: var(--primary);
+            box-shadow: 0 4px 16px rgba(200, 169, 110, 0.1);
+        }
+
+        .input-field.error { border-color: var(--error); background: rgba(255, 69, 58, 0.05); }
+
+        .input-icon {
+            position: absolute; right: 20px; top: 40px; /* Aligned with input center */
+            color: var(--text-muted); font-size: 20px; cursor: pointer; padding: 4px;
+        }
+        
+        .error-msg {
+            color: var(--error); font-size: 13px; font-weight: 500; margin-left: 4px;
+            display: none; align-items: center; gap: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            width: 100%; height: var(--min-tap);
+            border-radius: var(--radius-btn);
+            font-size: 17px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            cursor: pointer; transition: 0.2s;
+        }
+
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary {
+            background: var(--primary); color: #000;
+        }
+        
+        .btn-secondary {
+            background: var(--surface); color: var(--text-main);
+        }
+
+        .btn.loading span { opacity: 0; }
+        .btn.loading::after {
+            content: ''; position: absolute;
+            width: 24px; height: 24px;
+            border: 3px solid rgba(0,0,0,0.2); border-top-color: #000;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Social / Dividers */
+        .divider {
+            display: flex; align-items: center; color: var(--text-muted); font-size: 14px;
+            margin: 24px 0;
+        }
+        .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+        .divider span { padding: 0 16px; }
+
+        /* Bottom Sticky Action Area */
+        .bottom-action {
+            padding: 16px var(--h-pad);
+            padding-bottom: calc(var(--safe-bottom) + 16px);
+            background: var(--bg);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            display: flex; flex-direction: column; gap: 16px;
+        }
+
+        .text-btn {
+            color: var(--primary); font-size: 15px; font-weight: 600; text-align: center; cursor: pointer; background: none;
+        }
+        
+        .forgot-link {
+            align-self: flex-end; color: var(--primary); font-size: 14px; font-weight: 500; text-decoration: none; margin-top: -8px;
+        }
+
+        /* OTP Input Special */
+        .otp-group {
+            display: flex; gap: 12px; justify-content: space-between; margin-top: 16px;
+        }
+        .otp-input {
+            width: 100%; height: 64px; border-radius: 16px; background: var(--surface);
+            border: 1.5px solid transparent; font-size: 28px; font-weight: 700; text-align: center; color: var(--text-main);
+        }
+        .otp-input:focus { border-color: var(--primary); background: var(--bg); }
+
+        /* Native-like Toast */
+        .toast {
+            position: fixed; top: calc(var(--safe-top) + 16px); left: 50%; transform: translateX(-50%) translateY(-150%);
+            background: rgba(44, 44, 46, 0.95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            padding: 14px 24px; border-radius: 100px; color: #fff; font-size: 15px; font-weight: 500;
+            display: flex; align-items: center; gap: 8px; z-index: 9999;
+            transition: transform 0.4s var(--spring); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        
+        /* Logo / Intro styling */
+        .intro-logo {
+            width: 64px; height: 64px; background: var(--primary); border-radius: 18px;
+            display: flex; align-items: center; justify-content: center; margin-bottom: 24px;
+        }
+        .intro-logo i { font-size: 36px; color: #000; }
+
+        /* Helper for scroll */
+        .scroll-spacer { height: 40px; flex-shrink: 0; }
+
+        /* Desktop specific overriding (Since requirement is mobile-first, desktop just gets centered constrained view) */
+        @media (min-width: 600px) {
+            body { display: flex; align-items: center; justify-content: center; background: #111; }
+            .app-container { width: 400px; height: 850px; border-radius: 40px; box-shadow: 0 0 0 8px #222, 0 30px 60px rgba(0,0,0,0.5); border: 1px solid #333; max-height: 95vh; }
+            .view { border-radius: 40px; padding-top: 40px; padding-bottom: 40px; }
+            .bottom-action { padding-bottom: 32px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast" class="toast">
+        <i class="ti ti-info-circle"></i> <span id="toastMsg">Xabar</span>
+    </div>
+
+    <div class="app-container">
+
+        <!-- ==================== LOGIN VIEW ==================== -->
+        <div class="view active" id="view-login">
+            <div class="header" style="margin-top: 20px;">
+                <div class="intro-logo"><i class="ti ti-camera"></i></div>
+                <h1 class="title">Tizimga kirish</h1>
+                <p class="subtitle">ShootPlan — syomkalarni boshqarish markazi</p>
+            </div>
+
+            <div class="form-content">
+                <div class="input-group">
+                    <label class="input-label">Email yoki Telefon</label>
+                    <input type="email" id="loginEmail" class="input-field" placeholder="Masalan: admin@shootplan.uz" autocapitalize="none">
+                    <div class="error-msg" id="loginEmailErr"><i class="ti ti-alert-circle-filled"></i> Kiritish majburiy</div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Parol</label>
+                    <input type="password" id="loginPassword" class="input-field" placeholder="••••••••">
+                    <i class="ti ti-eye input-icon" onclick="togglePass('loginPassword', this)"></i>
+                    <div class="error-msg" id="loginPassErr"><i class="ti ti-alert-circle-filled"></i> Parol xato</div>
+                </div>
+
+                <a href="#" class="forgot-link" onclick="navTo('view-forgot')">Parolni unutdingizmi?</a>
+
+
+
+                <div class="scroll-spacer"></div>
+            </div>
+
+            <div class="bottom-action">
+                <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">
+                    <span>Kirish</span>
+                </button>
+                <button class="text-btn" onclick="navTo('view-register')">
+                    Yangi hisob yaratish
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== REGISTER VIEW ==================== -->
+        <div class="view" id="view-register">
+            <div class="header">
+                <div class="back-btn" onclick="navBack()"><i class="ti ti-chevron-left"></i></div>
+                <h1 class="title">Ro'yxatdan o'tish</h1>
+                <p class="subtitle">Yangi hisob yarating va ishlashni boshlang</p>
+            </div>
+
+            <div class="form-content">
+                <div class="input-group">
+                    <label class="input-label">To'liq ism</label>
+                    <input type="text" id="regName" class="input-field" placeholder="Ism Familiya">
+                    <div class="error-msg" id="regNameErr"><i class="ti ti-alert-circle-filled"></i> Kamida 2 ta belgi</div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Email manzil</label>
+                    <input type="email" id="regEmail" class="input-field" placeholder="email@manzil.uz" autocapitalize="none">
+                    <div class="error-msg" id="regEmailErr"><i class="ti ti-alert-circle-filled"></i> To'g'ri email kiriting</div>
+                </div>
+
+                <div class="input-group">
+                    <label class="input-label">Parol yarating</label>
+                    <input type="password" id="regPassword" class="input-field" placeholder="Kamida 6 ta belgi">
+                    <i class="ti ti-eye input-icon" onclick="togglePass('regPassword', this)"></i>
+                    <div class="error-msg" id="regPassErr"><i class="ti ti-alert-circle-filled"></i> Kamida 6 ta belgi</div>
+                </div>
+                
+                <div class="scroll-spacer"></div>
+            </div>
+
+            <div class="bottom-action">
+                <button class="btn btn-primary" id="registerBtn" onclick="handleRegister()">
+                    <span>Davom etish</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== FORGOT PASSWORD VIEW ==================== -->
+        <div class="view" id="view-forgot">
+            <div class="header">
+                <div class="back-btn" onclick="navBack()"><i class="ti ti-chevron-left"></i></div>
+                <h1 class="title">Parolni tiklash</h1>
+                <p class="subtitle">Email manzilingizni kiriting. Biz tasdiqlash kodini yuboramiz.</p>
+            </div>
+
+            <div class="form-content">
+                <div class="input-group">
+                    <label class="input-label">Email manzil</label>
+                    <input type="email" id="forgotEmail" class="input-field" placeholder="Sizning emailingiz" autocapitalize="none">
+                </div>
+                <div class="scroll-spacer"></div>
+            </div>
+
+            <div class="bottom-action">
+                <button class="btn btn-primary" id="forgotBtn" onclick="handleForgot()">
+                    <span>Kod yuborish</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== OTP VERIFICATION VIEW ==================== -->
+        <div class="view" id="view-otp">
+            <div class="header">
+                <div class="back-btn" onclick="navBack()"><i class="ti ti-chevron-left"></i></div>
+                <h1 class="title">Kodni kiriting</h1>
+                <p class="subtitle">Emailingizga yuborilgan 4 xonali kodni kiriting.</p>
+            </div>
+
+            <div class="form-content">
+                <div class="otp-group">
+                    <input type="number" class="otp-input" maxlength="1" oninput="otpFocus(this, 1)">
+                    <input type="number" class="otp-input" maxlength="1" oninput="otpFocus(this, 2)">
+                    <input type="number" class="otp-input" maxlength="1" oninput="otpFocus(this, 3)">
+                    <input type="number" class="otp-input" maxlength="1" oninput="otpFocus(this, 4)">
+                </div>
+                <div style="text-align: center; margin-top: 24px;">
+                    <span style="color: var(--text-muted); font-size: 14px;">Kodni olmadingizmi?</span>
+                    <button class="text-btn" style="display: inline; padding-left: 4px; font-size: 14px;">Qayta yuborish</button>
+                </div>
+                <div class="scroll-spacer"></div>
+            </div>
+
+            <div class="bottom-action">
+                <button class="btn btn-primary" id="otpBtn" onclick="handleOtp()">
+                    <span>Tasdiqlash</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // NATIVE NAVIGATION (SLIDE IN/OUT)
+        // ==========================================
+        let historyStack = ['view-login'];
+
+        function navTo(viewId) {
+            const currentView = document.getElementById(historyStack[historyStack.length - 1]);
+            const nextView = document.getElementById(viewId);
+            
+            // Prepare next view position
+            nextView.style.transform = 'translateX(100%)';
+            nextView.classList.add('active');
+            
+            // Force reflow
+            void nextView.offsetWidth;
+            
+            // Slide logic
+            currentView.classList.add('prev');
+            nextView.style.transform = 'translateX(0)';
+            
+            historyStack.push(viewId);
+            clearErrors();
+        }
+
+        function navBack() {
+            if (historyStack.length <= 1) return;
+            const currentViewId = historyStack.pop();
+            const prevViewId = historyStack[historyStack.length - 1];
+            
+            const currentView = document.getElementById(currentViewId);
+            const prevView = document.getElementById(prevViewId);
+            
+            currentView.style.transform = 'translateX(100%)';
+            prevView.classList.remove('prev');
+            
+            setTimeout(() => {
+                currentView.classList.remove('active');
+            }, 400); // Matches transition duration
+        }
+
+        // Handle native back button
+        window.addEventListener('popstate', (e) => {
+            e.preventDefault();
+            navBack();
+        });
+
+        // ==========================================
+        // UI HELPERS
+        // ==========================================
+        function togglePass(inputId, iconElement) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                iconElement.className = 'ti ti-eye-off input-icon';
+            } else {
+                input.type = 'password';
+                iconElement.className = 'ti ti-eye input-icon';
+            }
+        }
+
+        // Auto-scroll focused input into view for mobile keyboards
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', function() {
+                setTimeout(() => {
+                    this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            });
+        });
+
+        // OTP Auto-focus
+        function otpFocus(input, index) {
+            if (input.value.length === 1 && index < 4) {
+                input.nextElementSibling.focus();
+            }
+        }
+
+        let toastTimeout;
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const icon = toast.querySelector('i');
+            
+            toastMsg.textContent = msg;
+            if (type === 'error') {
+                icon.className = 'ti ti-alert-circle-filled';
+                icon.style.color = 'var(--error)';
+            } else if (type === 'success') {
+                icon.className = 'ti ti-circle-check-filled';
+                icon.style.color = 'var(--success)';
+            } else {
+                icon.className = 'ti ti-info-circle';
+                icon.style.color = '#fff';
+            }
+            
+            toast.classList.add('show');
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function showError(id) {
+            document.getElementById(id).style.display = 'flex';
+            document.getElementById(id).previousElementSibling.classList.add('error');
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.input-field').forEach(el => el.classList.remove('error'));
+        }
+
+        // ==========================================
+        // AUTH LOGIC (SHOOTPLAN SYSTEM)
+        // ==========================================
+        function handleLogin() {
+            clearErrors();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            let valid = true;
+
+            if (!email) { showError('loginEmailErr'); valid = false; }
+            if (!password || password.length < 6) { showError('loginPassErr'); valid = false; }
+            if (!valid) return;
+
+            const btn = document.getElementById('loginBtn');
+            btn.classList.add('loading');
+
+            setTimeout(() => {
+                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                const user = users.find(u => u.email === email && u.password === password);
+
+                if (!user) {
+                    btn.classList.remove('loading');
+                    showToast('Email yoki parol xato', 'error');
+                    return;
+                }
+
+                if (user.email === 'admin@shootplan.uz') user.approvalStatus = 'approved';
+
+                if (user.approvalStatus === 'pending') {
+                    btn.classList.remove('loading');
+                    showToast('Hisobingiz admin tasdig\'ida', 'info');
+                    return;
+                }
+
+                const sessionData = { id: user.id, name: user.name, email: user.email, loggedAt: Date.now() };
+                localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
+
+                showToast('Muvaffaqiyatli!', 'success');
+                setTimeout(() => window.location.href = 'index.html', 800);
+            }, 1000);
+        }
+
+        function handleRegister() {
+            clearErrors();
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            let valid = true;
+
+            if (!name || name.length < 2) { showError('regNameErr'); valid = false; }
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!email || !emailRegex.test(email)) { showError('regEmailErr'); valid = false; }
+            if (!password || password.length < 6) { showError('regPassErr'); valid = false; }
+
+            if (!valid) return;
+
+            const btn = document.getElementById('registerBtn');
+            btn.classList.add('loading');
+
+            setTimeout(() => {
+                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                if (users.find(u => u.email === email)) {
+                    btn.classList.remove('loading');
+                    showToast('Bu email ro\'yxatdan o\'tgan', 'error');
+                    return;
+                }
+
+                const isAdmin = email === 'admin@shootplan.uz' || users.length === 0;
+
+                const newUser = {
+                    id: Date.now().toString(),
+                    name: name, email: email, password: password,
+                    approvalStatus: isAdmin ? 'approved' : 'pending'
+                };
+                
+                users.push(newUser);
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+
+                btn.classList.remove('loading');
+                if (!isAdmin) {
+                    showToast('Hisob yaratildi! Admin tasdig\'ini kuting', 'success');
+                    setTimeout(() => navBack(), 1500);
+                } else {
+                    const sessionData = { id: newUser.id, name: newUser.name, email: newUser.email, loggedAt: Date.now() };
+                    localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
+                    showToast('Admin hisobi tayyor!', 'success');
+                    setTimeout(() => window.location.href = 'index.html', 800);
+                }
+            }, 1000);
+        }
+
+        function handleForgot() {
+            const email = document.getElementById('forgotEmail').value;
+            if(!email) return showToast('Emailni kiriting', 'error');
+            
+            const btn = document.getElementById('forgotBtn');
+            btn.classList.add('loading');
+            
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                navTo('view-otp');
+                showToast('Kod yuborildi', 'success');
+            }, 1000);
+        }
+
+        function handleOtp() {
+            const btn = document.getElementById('otpBtn');
+            btn.classList.add('loading');
+            
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                showToast('Tasdiqlandi! Parolni yangilang', 'success');
+                setTimeout(() => {
+                    navBack(); // In real app, go to Reset Password
+                    setTimeout(() => navBack(), 400); // Back to login
+                }, 1000);
+            }, 1000);
+        }
+
+        // Demo User Seeding
+        (function seedDemoUser() {
+            const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+            if (!users.find(u => u.email === 'admin@shootplan.uz')) {
+                users.push({ id: 'user_demo', name: 'Admin', email: 'admin@shootplan.uz', password: 'admin123', approvalStatus: 'approved' });
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+            }
+        })();
+    </script>
+</body>
+</html>

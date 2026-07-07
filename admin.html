@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="uz" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ShootPlan Admin Dashboard</title>
+    <!-- Supabase integration -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Base Reset & Variables */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html { scroll-behavior: smooth; }
+        
+        :root {
+            --font-main: system-ui, -apple-system, 'SF Pro Display', 'Inter', sans-serif;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-pill: 50px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            
+            /* Admin Theme specific colors - Gold accented */
+            --green: #C8A96E;
+            --green-glow: rgba(200, 169, 110, 0.3);
+            --danger: #E05252;
+            --warning: #F5A623;
+            --success: #4CAF78;
+            --info: #60a5fa;
+            --theme-accent: #C8A96E;
+        }
+
+        [data-theme="dark"] {
+            --bg-main: #0F0F0F;
+            --bg-secondary: #0F0F0F;
+            --card-bg: #1A1A1A;
+            --card-border: rgba(255, 255, 255, 0.07);
+            --text-primary: #F5F5F5;
+            --text-secondary: #9A9A9A;
+            --text-muted: #5A5A5A;
+            --input-bg: #1A1A1A;
+            --glass-bg: #1A1A1A;
+            --hover-bg: rgba(200, 169, 110, 0.08);
+        }
+
+        [data-theme="light"] {
+            --bg-main: #F5F5F7;
+            --bg-secondary: #E5E5EA;
+            --card-bg: #FFFFFF;
+            --card-border: rgba(0, 0, 0, 0.08);
+            --text-primary: #1C1C1E;
+            --text-secondary: #6E6E73;
+            --text-muted: #AEAEB2;
+            --input-bg: #F5F5F7;
+            --glass-bg: #FFFFFF;
+            --hover-bg: rgba(200, 169, 110, 0.08);
+        }
+
+        body {
+            font-family: var(--font-main);
+            background: var(--bg-main);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--theme-accent); }
+
+        /* Glassmorphism overridden with flat dark design for consistency */
+        .glass {
+            background: var(--glass-bg);
+            border: 1px solid var(--card-border);
+        }
+
+        /* --- Login Screen --- */
+        #loginScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--bg-main);
+            z-index: 1000;
+            opacity: 1; transition: opacity 0.5s ease;
+        }
+        #loginScreen.hidden { opacity: 0; pointer-events: none; }
+
+        .login-box {
+            width: 100%; max-width: 400px;
+            padding: 40px; border-radius: var(--radius-xl);
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.04);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            background: var(--card-bg);
+        }
+
+        .login-box h2 { font-size: 1.8rem; margin-bottom: 8px; letter-spacing: -0.5px; color: var(--text-primary); font-weight: 800; }
+        .login-box p { color: var(--text-muted); margin-bottom: 32px; font-size: 0.9rem; }
+
+        .form-group { margin-bottom: 20px; text-align: left; }
+        .form-group label { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 12px 14px;
+            background: var(--input-bg); border: 1px solid var(--card-border);
+            border-radius: var(--radius-md); color: var(--text-primary);
+            font-family: var(--font-main); font-size: 0.88rem;
+            transition: var(--transition); outline: none;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(200,169,110,0.14); }
+        .form-group select option { background: var(--bg-main); color: var(--text-primary); }
+        
+        .btn-primary {
+            width: 100%; padding: 12px 22px;
+            background: linear-gradient(135deg, #d4b47a, var(--theme-accent)); color: #0F0F0F;
+            border: none; border-radius: var(--radius-md);
+            font-size: 0.84rem; font-weight: 700; font-family: var(--font-main);
+            cursor: pointer; transition: var(--transition);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            letter-spacing: 0.2px; box-shadow: 0 0 18px rgba(200,169,110,0.3);
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(200,169,110,0.4); }
+        .btn-primary:active { transform: translateY(0); }
+
+        /* Error shake */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+        .error-shake { animation: shake 0.4s ease; border-color: var(--danger) !important; }
+        #loginError { color: var(--danger); font-size: 0.85rem; margin-top: -10px; margin-bottom: 15px; display: none; font-weight: 600; }
+
+        /* --- App Layout --- */
+        #appScreen { display: flex; height: 100vh; background: var(--bg-main); }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px; height: 100%;
+            border-right: 1px solid var(--card-border);
+            display: flex; flex-direction: column;
+            padding: 24px 0; z-index: 10;
+            background: var(--card-bg);
+        }
+
+        .sidebar-brand { padding: 0 24px; margin-bottom: 40px; display: flex; align-items: center; gap: 12px; }
+        .brand-icon {
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, rgba(200,169,110,0.2), rgba(200,169,110,0.4));
+            border: 1px solid rgba(200,169,110,0.35);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--green); font-weight: bold; font-size: 18px;
+        }
+        .brand-text h1 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); }
+        .brand-text span { font-size: 0.65rem; color: var(--green); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+
+        .nav-menu { flex: 1; padding: 0 16px; display: flex; flex-direction: column; gap: 4px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; border-radius: var(--radius-md);
+            color: var(--text-secondary); text-decoration: none;
+            font-weight: 600; font-size: 0.9rem; cursor: pointer;
+            transition: var(--transition);
+        }
+        .nav-item:hover { background: var(--hover-bg); color: var(--text-primary); }
+        .nav-item.active { background: linear-gradient(135deg, rgba(200,169,110,0.1), rgba(200,169,110,0.2)); color: var(--green); border: 1px solid rgba(200,169,110,0.15); }
+        .nav-item i { font-size: 1.2rem; opacity: 0.8; font-style: normal; }
+
+        .sidebar-footer { padding: 24px 16px 0; border-top: 1px solid var(--card-border); }
+        
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+        /* Top Header */
+        .top-header {
+            height: 80px; padding: 0 40px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--card-border); z-index: 5;
+            background: rgba(15,15,15,0.95);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        }
+        .header-title h2 { font-size: 1.2rem; font-weight: 800; letter-spacing: -0.5px; }
+        
+        .header-actions { display: flex; align-items: center; gap: 16px; }
+        .icon-btn {
+            width: 40px; height: 40px; border-radius: var(--radius-md);
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            color: var(--text-primary); display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: var(--transition); font-size: 1rem;
+        }
+        .icon-btn:hover { border-color: var(--theme-accent); box-shadow: 0 0 14px rgba(200,169,110,0.25); transform: scale(1.05); color: var(--theme-accent); }
+
+        .user-profile {
+            display: flex; align-items: center; gap: 12px;
+            padding: 6px 16px 6px 6px; border-radius: 30px;
+            background: var(--card-bg); cursor: pointer; border: 1px solid var(--card-border);
+            transition: var(--transition);
+        }
+        .user-profile:hover { border-color: var(--theme-accent); }
+        .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #d4b47a, var(--theme-accent)); color: #0F0F0F; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; }
+        .user-info span { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+
+        /* View Container */
+        .view-container { flex: 1; overflow-y: auto; padding: 40px; }
+        .view { display: none; animation: fadeInUp 0.4s ease; }
+        .view.active { display: block; }
+
+        /* --- Dashboard --- */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .stat-card {
+            padding: 24px; border-radius: var(--radius-xl);
+            display: flex; align-items: center; gap: 20px;
+            transition: var(--transition);
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+        }
+        .stat-card:hover { transform: translateY(-3px); border-color: rgba(200,169,110,0.35); box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset; }
+        .stat-icon {
+            width: 56px; height: 56px; border-radius: var(--radius-lg);
+            display: flex; align-items: center; justify-content: center; font-size: 24px;
+        }
+        .stat-icon.total { background: rgba(96, 165, 250, 0.15); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.2); }
+        .stat-icon.pending { background: rgba(245, 166, 35, 0.15); color: #F5A623; border: 1px solid rgba(245, 166, 35, 0.2); }
+        .stat-icon.completed { background: rgba(76, 175, 120, 0.15); color: #4CAF78; border: 1px solid rgba(76, 175, 120, 0.2); }
+        .stat-icon.revenue { background: rgba(200, 169, 110, 0.15); color: #C8A96E; border: 1px solid rgba(200, 169, 110, 0.2); }
+
+        .stat-info p { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .stat-info h3 { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.5px; }
+
+        .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 32px; }
+        .chart-card { padding: 24px; border-radius: var(--radius-xl); display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--card-border); }
+        .chart-header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .chart-header h3 { font-size: 1rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .chart-container { flex: 1; position: relative; min-height: 250px; }
+
+        @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr; } }
+
+        /* --- Shoots Table --- */
+        .table-toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+        }
+        .search-box { position: relative; width: 300px; }
+        .search-box input { width: 100%; padding: 10px 16px 10px 40px; border-radius: var(--radius-pill); background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-primary); font-family: var(--font-main); font-size: 0.84rem; outline: none; transition: var(--transition); }
+        .search-box input:focus { border-color: var(--theme-accent); box-shadow: 0 0 0 3px rgba(200,169,110,0.14); }
+        .search-box i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); opacity: 0.5; font-style: normal; font-size: 13px; }
+        
+        .filter-group { display: flex; gap: 12px; }
+        .filter-select { padding: 10px 16px; border-radius: var(--radius-pill); width: auto; font-size: 0.8rem; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-secondary); font-weight: 600; cursor: pointer; outline: none; }
+        .filter-select:focus { border-color: var(--theme-accent); color: var(--text-primary); }
+
+        .table-card { border-radius: var(--radius-xl); overflow: hidden; background: var(--card-bg); border: 1px solid var(--card-border); }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th {
+            padding: 16px 24px; font-size: 0.65rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);
+            background: rgba(15,15,15,0.5); border-bottom: 1px solid var(--card-border);
+        }
+        td {
+            padding: 16px 24px; font-size: 0.88rem; font-weight: 600;
+            border-bottom: 1px solid var(--card-border);
+            vertical-align: middle; color: var(--text-primary);
+        }
+        tr:last-child td { border-bottom: none; }
+        tbody tr { transition: var(--transition); }
+        tbody tr:hover { background: rgba(200,169,110,0.04); }
+
+        .badge {
+            padding: 4px 12px; border-radius: var(--radius-pill); font-size: 0.62rem; font-weight: 700;
+            display: inline-block; text-transform: uppercase; letter-spacing: 0.6px;
+        }
+        .badge.portrait { background: rgba(96,165,250,0.14); color: #60a5fa; border: 1px solid rgba(96,165,250,0.25); }
+        .badge.wedding { background: rgba(251,113,133,0.14); color: #fb7185; border: 1px solid rgba(251,113,133,0.25); }
+        .badge.commercial { background: rgba(251,191,36,0.14); color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
+        .badge.video { background: rgba(167,139,250,0.14); color: #a78bfa; border: 1px solid rgba(167,139,250,0.25); }
+        
+        .badge.confirmed { background: rgba(76,175,120,0.14); color: var(--success); border: 1px solid rgba(76,175,120,0.25); }
+        .badge.pending { background: rgba(245,166,35,0.14); color: var(--warning); border: 1px solid rgba(245,166,35,0.25); }
+        .badge.completed { background: rgba(90,90,90,0.14); color: var(--text-muted); border: 1px solid rgba(90,90,90,0.25); }
+
+        .action-btns { display: flex; gap: 8px; }
+        .action-btn {
+            width: 32px; height: 32px; border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--card-border); background: var(--card-bg);
+            color: var(--text-secondary); cursor: pointer; transition: var(--transition); font-size: 14px;
+        }
+        .action-btn:hover { border-color: var(--theme-accent); color: var(--theme-accent); box-shadow: 0 0 10px rgba(200,169,110,0.2); }
+        .action-btn.delete:hover { background: rgba(224, 82, 82, 0.1); border-color: rgba(224, 82, 82, 0.35); color: var(--danger); box-shadow: none; }
+
+        .client-cell { display: flex; align-items: center; gap: 12px; }
+        .client-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, rgba(200,169,110,0.15), rgba(200,169,110,0.3)); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--theme-accent); border: 1px solid rgba(200,169,110,0.2); }
+
+        .empty-table { padding: 40px; text-align: center; color: var(--text-muted); font-weight: 600; font-size: 0.9rem; }
+
+        /* --- Modals --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+            opacity: 0; visibility: hidden; transition: var(--transition); padding: 20px;
+        }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        
+        .modal-box {
+            background: #141414; border: 1px solid rgba(255,255,255,0.08);
+            width: 100%; max-width: 600px;
+            padding: 30px; border-radius: var(--radius-xl);
+            transform: scale(0.92) translateY(18px); transition: var(--transition);
+            box-shadow: 0 30px 70px rgba(0,0,0,0.6); max-height: 90vh; overflow-y: auto;
+        }
+        .modal-overlay.active .modal-box { transform: scale(1) translateY(0); }
+
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .modal-header h3 { font-size: 1.2rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.3px; }
+        .modal-close { 
+            width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--card-border);
+            background: var(--card-bg); color: var(--text-secondary); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 15px; transition: var(--transition);
+        }
+        .modal-close:hover { background: rgba(224,82,82,0.12); border-color: rgba(224,82,82,0.35); color: var(--danger); }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        /* Mobile Bottom Nav */
+        .bottom-nav {
+            display: none;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            background: rgba(15,15,15,0.97); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255,255,255,0.07);
+            z-index: 1000;
+            justify-content: space-around;
+            padding: 10px 0; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        }
+        .bottom-nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            text-decoration: none; color: var(--text-muted);
+            transition: var(--transition); min-width: 60px; padding: 4px;
+        }
+        .bottom-nav-item i { font-size: 20px; margin-bottom: 4px; font-style: normal; transition: transform 0.2s cubic-bezier(0.4,0,0.2,1); }
+        .bottom-nav-item span { font-size: 0.62rem; font-weight: 700; }
+        .bottom-nav-item.active { color: var(--theme-accent); }
+        .bottom-nav-item.active i { transform: scale(1.15) translateY(-2px); }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .bottom-nav { display: flex; }
+            .main-content { padding-bottom: 64px; }
+            .top-header { padding: 0 20px; }
+            .view-container { padding: 20px; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .search-box { width: 100%; }
+            .filter-group { width: 100%; flex-wrap: wrap; }
+            .filter-select { flex: 1; min-width: 120px; }
+            .table-toolbar { flex-direction: column; align-items: stretch; }
+            .modal-box { padding: 24px 20px; margin: 0; border-radius: var(--radius-xl) var(--radius-xl) 0 0; max-height: 90vh; overflow-y: auto; transform: translateY(100%); width: 100%; max-width: none; }
+            .modal-overlay { align-items: flex-end; padding: 0; }
+            .modal-overlay.active .modal-box { transform: translateY(0); }
+        }
+
+        /* Utils */
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
+    <script src="lang.js"></script>
+</head>
+<body>
+
+    <!-- 1. LOGIN SCREEN -->
+    <div id="loginScreen" class="glass">
+        <div class="login-box glass">
+            <h2>Admin Panel</h2>
+            <p>Boshqaruv tizimiga xush kelibsiz</p>
+            <div id="loginError">Login yoki parol noto'g'ri!</div>
+            
+            <div class="form-group">
+                <label>Login</label>
+                <input type="text" id="loginUsername" placeholder="admin" value="admin">
+            </div>
+            <div class="form-group">
+                <label>Parol</label>
+                <input type="password" id="loginPassword" placeholder="••••••••">
+            </div>
+            <button class="btn-primary" onclick="handleLogin()">
+                <span>Tizimga kirish</span> ➔
+            </button>
+            <div style="margin-top: 20px; font-size: 0.8rem; color: var(--text-muted);">
+                Parol: <strong>admin123</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. APP SCREEN -->
+    <div id="appScreen" style="display: none;">
+        
+        <!-- Sidebar -->
+        <aside class="sidebar glass">
+            <div class="sidebar-brand">
+                <div class="brand-icon">S</div>
+                <div class="brand-text">
+                    <h1>ShootPlan</h1>
+                    <span>Admin Panel</span>
+                </div>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" onclick="switchView('viewDashboard', this)">
+                    <i>📊</i> Dashboard
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('viewShoots', this)">
+                    <i>📅</i> Syomkalar (Jadval)
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('viewClients', this)">
+                    <i>👥</i> Mijozlar
+                </a>
+                <a href="#" class="nav-item" onclick="switchView('viewUsers', this)">
+                    <i>👤</i> <span data-i18n="admin_tab_users">Foydalanuvchilar</span>
+                </a>
+                <a href="index.html" class="nav-item">
+                    <i>🌐</i> Saytga qaytish
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="#" class="nav-item" style="color: var(--danger);" onclick="logout()">
+                    <i>🚪</i> Chiqish
+                </a>
+            </div>
+        </aside>
+
+        <!-- Bottom Nav for Mobile -->
+        <nav class="bottom-nav glass">
+            <a href="#" class="bottom-nav-item active" onclick="switchView('viewDashboard', this)">
+                <i>📊</i><span>Asosiy</span>
+            </a>
+            <a href="#" class="bottom-nav-item" onclick="switchView('viewShoots', this)">
+                <i>📅</i><span>Jadval</span>
+            </a>
+            <a href="#" class="bottom-nav-item" onclick="switchView('viewClients', this)">
+                <i>👥</i><span>Mijozlar</span>
+            </a>
+            <a href="#" class="bottom-nav-item" onclick="switchView('viewUsers', this)"><i>👤</i><span data-i18n="admin_tab_users">Users</span></a>
+            <a href="#" class="bottom-nav-item" style="color: var(--danger);" onclick="logout()">
+                <i>🚪</i><span>Chiqish</span>
+            </a>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header glass">
+                <div class="header-title">
+                    <h2 id="pageTitle">Dashboard</h2>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" onclick="toggleTheme()" title="Mavzuni o'zgartirish">
+                        <span id="themeIcon">🌙</span>
+                    </button>
+                    <div class="user-profile">
+                        <div class="avatar">A</div>
+                        <div class="user-info">
+                            <span>Admin</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="view-container">
+                
+                <!-- VIEW: DASHBOARD -->
+                <div id="viewDashboard" class="view active">
+                    <div class="stats-grid">
+                        <div class="stat-card glass">
+                            <div class="stat-icon total">📸</div>
+                            <div class="stat-info">
+                                <p>Jami Syomkalar</p>
+                                <h3 id="statTotal">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-icon pending">⏳</div>
+                            <div class="stat-info">
+                                <p>Kutilmoqda</p>
+                                <h3 id="statPending">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-icon completed">✅</div>
+                            <div class="stat-info">
+                                <p>Yakunlangan</p>
+                                <h3 id="statCompleted">0</h3>
+                            </div>
+                        </div>
+                        <div class="stat-card glass">
+                            <div class="stat-icon revenue">💰</div>
+                            <div class="stat-info">
+                                <p>Umumiy daromad</p>
+                                <h3 id="statRevenue">0 so'm</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Syomkalar Dinamikasi</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="lineChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card glass">
+                            <div class="chart-header">
+                                <h3>Turlar bo'yicha</h3>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="donutChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: SHOOTS TABLE -->
+                <div id="viewShoots" class="view">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <i>🔍</i>
+                            <input type="text" id="searchInput" placeholder="Ism yoki manzil bo'yicha qidiruv..." onkeyup="renderTable()">
+                        </div>
+                        <div class="filter-group">
+                            <select id="filterType" class="form-group filter-select glass" onchange="renderTable()">
+                                <option value="all">Barcha turlar</option>
+                                <option value="portrait">Portrait</option>
+                                <option value="wedding">Wedding</option>
+                                <option value="commercial">Commercial</option>
+                                <option value="video">Video</option>
+                            </select>
+                            <select id="filterStatus" class="form-group filter-select glass" onchange="renderTable()">
+                                <option value="all">Barcha statuslar</option>
+                                <option value="confirmed">Tasdiqlangan</option>
+                                <option value="pending">Kutilmoqda</option>
+                                <option value="completed">Yakunlangan</option>
+                            </select>
+                            <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="exportCSV()"
+                                title="CSV ko'rinishida yuklab olish">
+                                📅 CSV Export
+                            </button>
+                            <button class="btn-primary" style="width:auto;padding:10px 20px;" onclick="openAdminModal()">
+                                + Yangi qo'shish
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-card glass">
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Mijoz</th>
+                                        <th>Sana / Vaqt</th>
+                                        <th>Turi</th>
+                                        <th>Narxi (so'm)</th>
+                                        <th>Holati</th>
+                                        <th>Amallar</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shootsTableBody">
+                                    <!-- Rows rendered by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: CLIENTS -->
+                <div id="viewClients" class="view">
+                    <div class="clients-header" style="margin-bottom:16px;">
+                        <div class="clients-summary" id="clientsSummary"></div>
+                    </div>
+                    <div class="clients-grid" id="clientsGrid"></div>
+                </div>
+
+
+                <!-- --- Foydalanuvchilar View --- -->
+                <div class="view" id="viewUsers">
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <i>🔍</i>
+                            <input type="text" id="userSearch" placeholder="Foydalanuvchi izlash..." oninput="renderUsersView()">
+                        </div>
+                    </div>
+                    
+                    <div class="table-card glass">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Ism</th>
+                                    <th>Email</th>
+                                    <th>Holati</th>
+                                    <th style="text-align:right">Amallar</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTbody">
+                                <!-- JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Admin Form Modal -->
+    <div class="modal-overlay" id="adminModal">
+        <div class="modal-box glass">
+            <div class="modal-header">
+                <h3 id="modalTitle">Syomka qo'shish/tahrirlash</h3>
+                <button class="modal-close" onclick="closeAdminModal()">✕</button>
+            </div>
+            <form id="adminForm" onsubmit="saveAdminShoot(event)">
+                <input type="hidden" id="editId">
+                <div class="form-group">
+                    <label>Mijoz ismi</label>
+                    <input type="text" id="clientName" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Sana</label>
+                        <input type="date" id="shootDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="form_time">Vaqt</label>
+                        <input type="time" id="shootTime" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Joylashuv</label>
+                    <input type="text" id="shootLocation" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Syomka turi</label>
+                        <select id="shootType" required>
+                            <option value="portrait">Portrait</option>
+                            <option value="wedding">Wedding</option>
+                            <option value="commercial">Commercial</option>
+                            <option value="video">Video</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="shootStatus" required>
+                            <option value="confirmed">Tasdiqlangan</option>
+                            <option value="pending">Kutilmoqda</option>
+                            <option value="completed">Yakunlangan</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Price added specifically for admin -->
+                <div class="form-group">
+                    <label>Narxi (so'm) - Ixtiyoriy</label>
+                    <input type="number" id="shootPrice" placeholder="Masalan: 1000000">
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="button" class="btn-primary" style="background: transparent; border: 1px solid var(--text-muted); color: var(--text-primary);" onclick="closeAdminModal()">Bekor qilish</button>
+                    <button type="submit" class="btn-primary">Saqlash</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // --- State & Data ---
+        let shoots = JSON.parse(localStorage.getItem('shootplan_data')) || [];
+        let isAuthenticated = sessionStorage.getItem('admin_auth') === 'true';
+
+        // Chart instances
+        let lineChartInstance = null;
+        let donutChartInstance = null;
+
+        // --- Init ---
+        function init() {
+            initTheme();
+            if (isAuthenticated) {
+                showApp();
+            } else {
+                document.getElementById('loginScreen').classList.remove('hidden');
+                document.getElementById('appScreen').style.display = 'none';
+            }
+        }
+
+        // --- Auth ---
+        function handleLogin() {
+            const user = document.getElementById('loginUsername').value;
+            const pass = document.getElementById('loginPassword').value;
+            const passInput = document.getElementById('loginPassword');
+            const errorText = document.getElementById('loginError');
+
+            if (user === 'admin' && pass === 'admin123') {
+                sessionStorage.setItem('admin_auth', 'true');
+                isAuthenticated = true;
+                showApp();
+            } else {
+                errorText.style.display = 'block';
+                passInput.classList.add('error-shake');
+                setTimeout(() => passInput.classList.remove('error-shake'), 400);
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('admin_auth');
+            window.location.reload();
+        }
+
+        async function fetchSupabaseData() {
+            if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                return;
+            }
+            try {
+                const { data, error } = await supabaseClient.from('shoots').select('*, clients(*)');
+                if (error) throw error;
+                shoots = data.map(row => ({
+                    id: row.id,
+                    client_id: row.client_id,
+                    clientName: row.clients ? row.clients.full_name : 'Noma\'lum',
+                    phone: row.clients ? row.clients.phone : '',
+                    type: row.type || 'Boshqa',
+                    date: row.shoot_date ? row.shoot_date.split('T')[0] : '',
+                    time: row.shoot_date ? row.shoot_date.split('T')[1].substring(0,5) : '',
+                    location: row.location || '',
+                    price: row.price || '',
+                    status: row.status || 'pending',
+                    notes: row.notes || ''
+                }));
+                localStorage.setItem('shootplan_data', JSON.stringify(shoots));
+            } catch (err) {
+                console.error("Supabase dan ma'lumot olishda xatolik:", err);
+            }
+        }
+
+        async function showApp() {
+            document.getElementById('loginScreen').style.opacity = '0';
+            await fetchSupabaseData();
+            setTimeout(() => {
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('appScreen').style.display = 'flex';
+                updateDashboard();
+                renderTable();
+            }, 300);
+        }
+
+
+        // --- Foydalanuvchilar Logic ---
+        function renderUsersView() {
+            const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+            const tbody = document.getElementById('usersTbody');
+            const search = document.getElementById('userSearch').value.toLowerCase();
+            
+            let html = '';
+            let filtered = users;
+            
+            if (search) {
+                filtered = users.filter(u => (u.name || '').toLowerCase().includes(search) || (u.email || '').toLowerCase().includes(search));
+            }
+            
+            if (filtered.length === 0) {
+                html = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">Mijozlar topilmadi.</td></tr>`;
+            } else {
+                filtered.forEach(u => {
+                    const statusText = u.approvalStatus === 'approved' ? 'Tasdiqlangan' : 'Kutilmoqda';
+                    const statusColor = u.approvalStatus === 'approved' ? 'var(--success)' : 'var(--warn)';
+                    const statusBg = u.approvalStatus === 'approved' ? 'rgba(76, 175, 120, 0.1)' : 'rgba(245, 166, 35, 0.1)';
+                    
+                    let actions = '';
+                    if (u.approvalStatus === 'pending') {
+                        actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto;" onclick="approveUser('${u.id}')">Tasdiqlash</button> `;
+                    }
+                    if (u.email !== 'admin@shootplan.uz') {
+                        actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto; background: var(--danger); border-color: var(--danger); color: white;" onclick="deleteUser('${u.id}')">O'chirish</button>`;
+                    }
+                    
+                    html += `
+                        <tr>
+                            <td><div style="font-weight:700;">${u.name}</div></td>
+                            <td>${u.email}</td>
+                            <td>
+                                <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600;">
+                                    ${statusText}
+                                </span>
+                            </td>
+                            <td style="text-align:right;">${actions}</td>
+                        </tr>
+                    `;
+                });
+            }
+            tbody.innerHTML = html;
+        }
+
+        function approveUser(id) {
+            const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+            const idx = users.findIndex(u => u.id === id);
+            if (idx > -1) {
+                users[idx].approvalStatus = 'approved';
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+                renderUsersView();
+            }
+        }
+        
+        function deleteUser(id) {
+            if(confirm("Foydalanuvchini o'chirishni tasdiqlaysizmi?")) {
+                let users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                users = users.filter(u => u.id !== id);
+                localStorage.setItem('shootplan_users', JSON.stringify(users));
+                renderUsersView();
+            }
+        }
+
+
+        // --- Theme ---
+        function initTheme() {
+            const saved = localStorage.getItem('shootplan_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', saved);
+            document.getElementById('themeIcon').textContent = saved === 'dark' ? '☀️' : '🌙';
+            updateChartsTheme();
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('shootplan_theme', next);
+            document.getElementById('themeIcon').textContent = next === 'dark' ? '☀️' : '🌙';
+            updateChartsTheme();
+        }
+
+        // --- Navigation ---
+        function switchView(viewId, el) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+            if (el) el.classList.add('active');
+
+            const titles = { 'viewDashboard': 'Dashboard', 'viewShoots': 'Syomkalar Jadvali', 'viewClients': 'Mijozlar', 'viewUsers': 'Foydalanuvchilar' };
+            document.getElementById('pageTitle').textContent = titles[viewId] || viewId;
+
+            if (viewId === 'viewClients') renderClientsView();
+            if (viewId === 'viewUsers') renderUsersView();
+        }
+
+        // --- Dashboard Logic ---
+        function updateDashboard() {
+            // Stats
+            document.getElementById('statTotal').textContent = shoots.length;
+            document.getElementById('statPending').textContent = shoots.filter(s => s.status === 'pending').length;
+            document.getElementById('statCompleted').textContent = shoots.filter(s => s.status === 'completed').length;
+            
+            const totalRevenue = shoots.reduce((acc, s) => acc + (parseInt(s.price) || 0), 0);
+            document.getElementById('statRevenue').textContent = totalRevenue.toLocaleString('uz-UZ') + " so'm";
+
+            renderCharts();
+        }
+
+        function renderCharts() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#cbd5e1' : '#475569';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+            // Prepare data for Donut Chart
+            const typesCount = { portrait: 0, wedding: 0, commercial: 0, video: 0 };
+            shoots.forEach(s => { if(typesCount[s.type] !== undefined) typesCount[s.type]++; });
+
+            const ctxDonut = document.getElementById('donutChart').getContext('2d');
+            if(donutChartInstance) donutChartInstance.destroy();
+            donutChartInstance = new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Portrait', 'Wedding', 'Commercial', 'Video'],
+                    datasets: [{
+                        data: [typesCount.portrait, typesCount.wedding, typesCount.commercial, typesCount.video],
+                        backgroundColor: ['#3b82f6', '#f472b6', '#a855f7', '#10b981'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: textColor } } },
+                    cutout: '70%'
+                }
+            });
+
+            // Prepare data for Line Chart (Last 7 days)
+            const datesMap = {};
+            // Generate last 7 days keys
+            for(let i=6; i>=0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                datesMap[ds] = 0;
+            }
+            shoots.forEach(s => {
+                if(datesMap[s.date] !== undefined) datesMap[s.date]++;
+            });
+
+            const ctxLine = document.getElementById('lineChart').getContext('2d');
+            if(lineChartInstance) lineChartInstance.destroy();
+            lineChartInstance = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(datesMap).map(d => d.slice(5)), // MM-DD
+                    datasets: [{
+                        label: 'Syomkalar soni',
+                        data: Object.values(datesMap),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4, fill: true, pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor } },
+                        x: { ticks: { color: textColor }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateChartsTheme() {
+            if(isAuthenticated) renderCharts();
+        }
+
+        // --- Table Logic ---
+        function getTypeLabel(type) {
+            const labels = { portrait: 'Portrait', wedding: 'Wedding', commercial: 'Commercial', video: 'Video' };
+            return labels[type] || type;
+        }
+
+        function getStatusLabel(status) {
+            const labels = { confirmed: 'Tasdiqlangan', pending: 'Kutilmoqda', completed: 'Yakunlangan' };
+            return labels[status] || status;
+        }
+
+        function renderTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const fType = document.getElementById('filterType').value;
+            const fStatus = document.getElementById('filterStatus').value;
+
+            let filtered = shoots.filter(s => {
+                // Support both 'name' and 'clientName' fields for compatibility
+                const displayName = s.clientName || s.name || '';
+                const matchSearch = displayName.toLowerCase().includes(search) || (s.location || '').toLowerCase().includes(search);
+                const matchType = fType === 'all' || s.type === fType;
+                const matchStatus = fStatus === 'all' || s.status === fStatus;
+                return matchSearch && matchType && matchStatus;
+            });
+
+            // Sort by date desc
+            filtered.sort((a, b) => {
+                if(a.date !== b.date) return b.date.localeCompare(a.date);
+                return b.time.localeCompare(a.time);
+            });
+
+            const tbody = document.getElementById('shootsTableBody');
+            
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="empty-table">Hech qanday ma'lumot topilmadi.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(s => {
+                const displayName = s.clientName || s.name || 'Noma\'lum';
+                const price = s.price ? parseInt(s.price).toLocaleString('uz-UZ') : '-';
+                return `
+                <tr>
+                    <td>
+                        <div class="client-cell">
+                            <div class="client-avatar">${displayName.charAt(0).toUpperCase()}</div>
+                            <div>
+                                <strong>${displayName}</strong><br>
+                                <span style="font-size:0.75rem; color:var(--text-muted)">${s.location || ''}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <strong>${s.date || ''}</strong><br>
+                        <span style="font-size:0.75rem; color:var(--text-muted)">Soat: ${s.time || ''}</span>
+                    </td>
+                    <td><span class="badge ${s.type}">${getTypeLabel(s.type)}</span></td>
+                    <td><strong>${price}</strong></td>
+                    <td><span class="badge ${s.status}">${getStatusLabel(s.status)}</span></td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="action-btn" onclick="openAdminModal('${s.id}')" title="Tahrirlash">✏️</button>
+                            <button class="action-btn delete" onclick="deleteAdminShoot('${s.id}')" title="O'chirish">🗑️</button>
+                        </div>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        // --- Modal CRUD ---
+        function openAdminModal(id = null) {
+            document.getElementById('adminForm').reset();
+            document.getElementById('editId').value = '';
+            
+            if (id) {
+                const s = shoots.find(x => x.id === id || x.id === parseInt(id));
+                if(s) {
+                    const displayName = s.clientName || s.name || '';
+                    document.getElementById('modalTitle').textContent = "Syomkani tahrirlash";
+                    document.getElementById('editId').value = s.id;
+                    document.getElementById('clientName').value = displayName;
+                    document.getElementById('shootDate').value = s.date;
+                    document.getElementById('shootTime').value = s.time;
+                    document.getElementById('shootLocation').value = s.location;
+                    document.getElementById('shootType').value = s.type;
+                    document.getElementById('shootStatus').value = s.status;
+                    document.getElementById('shootPrice').value = s.price || '';
+                }
+            } else {
+                document.getElementById('modalTitle').textContent = "Yangi syomka qo'shish";
+            }
+            
+            document.getElementById('adminModal').classList.add('active');
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').classList.remove('active');
+        }
+
+        async function saveAdminShoot(e) {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const name = document.getElementById('clientName').value.trim();
+            const shootData = {
+                date: document.getElementById('shootDate').value,
+                time: document.getElementById('shootTime').value,
+                location: document.getElementById('shootLocation').value.trim(),
+                type: document.getElementById('shootType').value,
+                status: document.getElementById('shootStatus').value,
+                price: document.getElementById('shootPrice').value || null
+            };
+
+            const locData = {
+                clientName: name,
+                ...shootData
+            };
+
+            if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                if (id) {
+                    const index = shoots.findIndex(s => s.id === id || s.id == id);
+                    if (index !== -1) shoots[index] = { ...shoots[index], ...locData };
+                } else {
+                    shoots.push({ 
+                        id: Date.now().toString(36) + Math.random().toString(36).substr(2), 
+                        ...locData, 
+                        createdAt: new Date().toISOString() 
+                    });
+                }
+
+                localStorage.setItem('shootplan_data', JSON.stringify(shoots));
+                closeAdminModal();
+                updateDashboard();
+                renderTable();
+                return;
+            }
+
+            try {
+                let client_id = null;
+                const { data: clients, error: clientErr } = await supabaseClient
+                    .from('clients').select('id').eq('full_name', name).limit(1);
+                
+                if (clientErr) throw clientErr;
+                
+                if (clients && clients.length > 0) {
+                    client_id = clients[0].id;
+                } else {
+                    const { data: newClient, error: newClientErr } = await supabaseClient
+                        .from('clients').insert([{ full_name: name }]).select();
+                    if (newClientErr) throw newClientErr;
+                    client_id = newClient[0].id;
+                }
+                
+                const sbData = {
+                    client_id,
+                    type: shootData.type,
+                    status: shootData.status,
+                    shoot_date: shootData.date + 'T' + shootData.time + ':00Z',
+                    location: shootData.location,
+                    price: shootData.price
+                };
+
+                if (id) {
+                    const { error } = await supabaseClient.from('shoots').update(sbData).eq('id', id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabaseClient.from('shoots').insert([sbData]);
+                    if (error) throw error;
+                }
+                
+                closeAdminModal();
+                await fetchSupabaseData();
+                updateDashboard();
+                renderTable();
+            } catch (err) {
+                console.error("Xatolik:", err);
+                alert("Saqlashda xatolik yuz berdi.");
+            }
+        }
+
+        async function deleteAdminShoot(id) {
+            if(!confirm("Haqiqatan ham ushbu syomkani o'chirib tashlamoqchimisiz?")) return;
+            
+            if (!supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                shoots = shoots.filter(s => s.id !== id && s.id !== parseInt(id));
+                localStorage.setItem('shootplan_data', JSON.stringify(shoots));
+                updateDashboard();
+                renderTable();
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient.from('shoots').delete().eq('id', id);
+                if (error) throw error;
+                
+                await fetchSupabaseData();
+                updateDashboard();
+                renderTable();
+            } catch(err) {
+                console.error("Xatolik:", err);
+                alert("O'chirishda xatolik yuz berdi");
+            }
+        }
+
+
+        function renderClientsView() {
+            const grid = document.getElementById('clientsGrid');
+            const summary = document.getElementById('clientsSummary');
+            if (!grid) return;
+
+            // Deduplicate by name/clientName
+            const seen = new Set();
+            const unique = shoots.filter(s => {
+                const key = s.clientName || s.name || '';
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            }).sort((a, b) => {
+                const an = a.clientName || a.name || '';
+                const bn = b.clientName || b.name || '';
+                return an.localeCompare(bn);
+            });
+
+            summary.innerHTML = `<p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:16px;">Jami: <strong style="color:var(--text-primary)">${unique.length}</strong> ta mijoz</p>`;
+
+            if (unique.length === 0) {
+                grid.innerHTML = `<div style="text-align:center; color:var(--text-muted); padding:40px; font-weight:600;">Mijozlar yo'q</div>`;
+                return;
+            }
+
+            grid.style.cssText = 'display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;';
+            grid.innerHTML = unique.map(s => {
+                const displayName = s.clientName || s.name || 'Noma\'lum';
+                const initials = displayName.trim().split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+                const shootCount = shoots.filter(x => (x.clientName || x.name) === displayName).length;
+                return `
+                <div class="stat-card glass" style="flex-direction:column; align-items:flex-start; gap:12px; cursor:default;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <div class="client-avatar" style="width:44px;height:44px;font-size:1rem;">${initials}</div>
+                        <div>
+                            <div style="font-weight:700; color:var(--text-primary); font-size:0.95rem;">${displayName}</div>
+                            <div style="font-size:0.78rem; color:var(--text-muted);">${s.phone || 'Raqam yo\'q'}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <span class="badge ${s.type || ''}">${s.type || ''}</span>
+                        <span style="font-size:0.75rem; color:var(--text-secondary); font-weight:600;">${shootCount} ta syomka</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function exportCSV() {
+            if (shoots.length === 0) {
+                alert("Eksport qilish uchun ma'lumot yo'q.");
+                return;
+            }
+
+            const headers = ['Mijoz ismi', 'Sana', 'Vaqt', 'Joylashuv', 'Turi', 'Narxi', 'Holati'];
+            const rows = shoots.map(s => [
+                `"${(s.clientName || '').replace(/"/g, '""')}"`,
+                s.date,
+                s.time,
+                `"${(s.location || '').replace(/"/g, '""')}"`,
+                getTypeLabel(s.type),
+                s.price || '',
+                getStatusLabel(s.status)
+            ]);
+
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(r => r.join(','))
+            ].join('\n');
+
+            // \uFEFF for Excel UTF-8 BOM
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `shoots_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // (Admin auth is handled by checkAdminAuth inside init)
+
+        // Run Init
+        init();
+
+    </script>
+</body>
+</html>

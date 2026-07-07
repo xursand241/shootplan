@@ -756,67 +756,137 @@
 
 
         // --- Foydalanuvchilar Logic ---
-        function renderUsersView() {
-            const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+        async function renderUsersView() {
             const tbody = document.getElementById('usersTbody');
             const search = document.getElementById('userSearch').value.toLowerCase();
-            
             let html = '';
-            let filtered = users;
             
-            if (search) {
-                filtered = users.filter(u => (u.name || '').toLowerCase().includes(search) || (u.email || '').toLowerCase().includes(search));
+            if (typeof supabaseClient === 'undefined' || !supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                let filtered = users;
+                
+                if (search) {
+                    filtered = users.filter(u => (u.name || '').toLowerCase().includes(search) || (u.email || '').toLowerCase().includes(search));
+                }
+                
+                if (filtered.length === 0) {
+                    html = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">Mijozlar topilmadi.</td></tr>`;
+                } else {
+                    filtered.forEach(u => {
+                        const statusText = u.approvalStatus === 'approved' ? 'Tasdiqlangan' : 'Kutilmoqda';
+                        const statusColor = u.approvalStatus === 'approved' ? 'var(--success)' : 'var(--warn)';
+                        const statusBg = u.approvalStatus === 'approved' ? 'rgba(76, 175, 120, 0.1)' : 'rgba(245, 166, 35, 0.1)';
+                        
+                        let actions = '';
+                        if (u.approvalStatus === 'pending') {
+                            actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto;" onclick="approveUser('${u.id}')">Tasdiqlash</button> `;
+                        }
+                        if (u.email !== 'admin@shootplan.uz') {
+                            actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto; background: var(--danger); border-color: var(--danger); color: white;" onclick="deleteUser('${u.id}')">O'chirish</button>`;
+                        }
+                        
+                        html += `
+                            <tr>
+                                <td><div style="font-weight:700;">${u.name}</div></td>
+                                <td>${u.email}</td>
+                                <td>
+                                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600;">
+                                        ${statusText}
+                                    </span>
+                                </td>
+                                <td style="text-align:right;">${actions}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                tbody.innerHTML = html;
+                return;
             }
-            
-            if (filtered.length === 0) {
-                html = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">Mijozlar topilmadi.</td></tr>`;
-            } else {
-                filtered.forEach(u => {
-                    const statusText = u.approvalStatus === 'approved' ? 'Tasdiqlangan' : 'Kutilmoqda';
-                    const statusColor = u.approvalStatus === 'approved' ? 'var(--success)' : 'var(--warn)';
-                    const statusBg = u.approvalStatus === 'approved' ? 'rgba(76, 175, 120, 0.1)' : 'rgba(245, 166, 35, 0.1)';
-                    
-                    let actions = '';
-                    if (u.approvalStatus === 'pending') {
-                        actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto;" onclick="approveUser('${u.id}')">Tasdiqlash</button> `;
-                    }
-                    if (u.email !== 'admin@shootplan.uz') {
-                        actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto; background: var(--danger); border-color: var(--danger); color: white;" onclick="deleteUser('${u.id}')">O'chirish</button>`;
-                    }
-                    
-                    html += `
-                        <tr>
-                            <td><div style="font-weight:700;">${u.name}</div></td>
-                            <td>${u.email}</td>
-                            <td>
-                                <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600;">
-                                    ${statusText}
-                                </span>
-                            </td>
-                            <td style="text-align:right;">${actions}</td>
-                        </tr>
-                    `;
-                });
+
+            try {
+                let query = supabaseClient.from('app_users').select('*');
+                if (search) {
+                    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+                }
+                const { data: users, error } = await query;
+                if (error) throw error;
+
+                if (!users || users.length === 0) {
+                    html = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-muted);">Mijozlar topilmadi.</td></tr>`;
+                } else {
+                    users.forEach(u => {
+                        const statusText = u.approval_status === 'approved' ? 'Tasdiqlangan' : 'Kutilmoqda';
+                        const statusColor = u.approval_status === 'approved' ? 'var(--success)' : 'var(--warn)';
+                        const statusBg = u.approval_status === 'approved' ? 'rgba(76, 175, 120, 0.1)' : 'rgba(245, 166, 35, 0.1)';
+                        
+                        let actions = '';
+                        if (u.approval_status === 'pending') {
+                            actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto;" onclick="approveUser('${u.id}')">Tasdiqlash</button> `;
+                        }
+                        if (u.email !== 'admin@shootplan.uz') {
+                            actions += `<button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; min-width: auto; height: auto; background: var(--danger); border-color: var(--danger); color: white;" onclick="deleteUser('${u.id}')">O'chirish</button>`;
+                        }
+                        
+                        html += `
+                            <tr>
+                                <td><div style="font-weight:700;">${u.full_name}</div></td>
+                                <td>${u.email}</td>
+                                <td>
+                                    <span style="background: ${statusBg}; color: ${statusColor}; padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 600;">
+                                        ${statusText}
+                                    </span>
+                                </td>
+                                <td style="text-align:right;">${actions}</td>
+                            </tr>
+                        `;
+                    });
+                }
+                tbody.innerHTML = html;
+            } catch(e) {
+                console.error(e);
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--danger);">Xatolik yuz berdi.</td></tr>`;
             }
-            tbody.innerHTML = html;
         }
 
-        function approveUser(id) {
-            const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
-            const idx = users.findIndex(u => u.id === id);
-            if (idx > -1) {
-                users[idx].approvalStatus = 'approved';
-                localStorage.setItem('shootplan_users', JSON.stringify(users));
+        async function approveUser(id) {
+            if (typeof supabaseClient === 'undefined' || !supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                const idx = users.findIndex(u => u.id === id);
+                if (idx > -1) {
+                    users[idx].approvalStatus = 'approved';
+                    localStorage.setItem('shootplan_users', JSON.stringify(users));
+                    renderUsersView();
+                }
+                return;
+            }
+
+            try {
+                const { error } = await supabaseClient.from('app_users').update({ approval_status: 'approved' }).eq('id', id);
+                if (error) throw error;
                 renderUsersView();
+            } catch(e) {
+                console.error(e);
+                alert("Xatolik yuz berdi");
             }
         }
         
-        function deleteUser(id) {
+        async function deleteUser(id) {
             if(confirm("Foydalanuvchini o'chirishni tasdiqlaysizmi?")) {
-                let users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
-                users = users.filter(u => u.id !== id);
-                localStorage.setItem('shootplan_users', JSON.stringify(users));
-                renderUsersView();
+                if (typeof supabaseClient === 'undefined' || !supabaseClient || supabaseUrl === 'your_supabase_project_url_here') {
+                    let users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                    users = users.filter(u => u.id !== id);
+                    localStorage.setItem('shootplan_users', JSON.stringify(users));
+                    renderUsersView();
+                    return;
+                }
+                try {
+                    const { error } = await supabaseClient.from('app_users').delete().eq('id', id);
+                    if (error) throw error;
+                    renderUsersView();
+                } catch(e) {
+                    console.error(e);
+                    alert("Xatolik yuz berdi");
+                }
             }
         }
 

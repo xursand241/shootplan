@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ShootPlan</title>
+    <!-- Supabase integration -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabaseConfig.js"></script>
     <!-- Modern Font: SF Pro like or Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
@@ -516,10 +519,7 @@
             document.querySelectorAll('.input-field').forEach(el => el.classList.remove('error'));
         }
 
-        // ==========================================
-        // AUTH LOGIC (SHOOTPLAN SYSTEM)
-        // ==========================================
-        function handleLogin() {
+        async function handleLogin() {
             clearErrors();
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
@@ -532,33 +532,59 @@
             const btn = document.getElementById('loginBtn');
             btn.classList.add('loading');
 
-            setTimeout(() => {
-                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
-                const user = users.find(u => u.email === email && u.password === password);
+            if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+                // Fallback LocalStorage
+                setTimeout(() => {
+                    const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                    const user = users.find(u => u.email === email && u.password === password);
+                    if (!user) {
+                        btn.classList.remove('loading');
+                        showToast('Email yoki parol xato', 'error');
+                        return;
+                    }
+                    if (user.approvalStatus === 'pending') {
+                        btn.classList.remove('loading');
+                        showToast('Hisobingiz admin tasdig\'ida', 'info');
+                        return;
+                    }
+                    const sessionData = { id: user.id, name: user.name, email: user.email, loggedAt: Date.now() };
+                    localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
+                    showToast('Muvaffaqiyatli!', 'success');
+                    setTimeout(() => window.location.href = 'index.html', 800);
+                }, 500);
+                return;
+            }
 
-                if (!user) {
+            try {
+                // Supabase
+                const { data: users, error } = await supabaseClient
+                    .from('app_users').select('*').eq('email', email).eq('password', password).limit(1);
+
+                if (error || !users || users.length === 0) {
                     btn.classList.remove('loading');
                     showToast('Email yoki parol xato', 'error');
                     return;
                 }
 
-                if (user.email === 'admin@shootplan.uz') user.approvalStatus = 'approved';
-
-                if (user.approvalStatus === 'pending') {
+                const user = users[0];
+                if (user.approval_status === 'pending') {
                     btn.classList.remove('loading');
                     showToast('Hisobingiz admin tasdig\'ida', 'info');
                     return;
                 }
-
-                const sessionData = { id: user.id, name: user.name, email: user.email, loggedAt: Date.now() };
+                
+                const sessionData = { id: user.id, name: user.full_name, email: user.email, loggedAt: Date.now() };
                 localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
-
                 showToast('Muvaffaqiyatli!', 'success');
                 setTimeout(() => window.location.href = 'index.html', 800);
-            }, 1000);
+            } catch (e) {
+                console.error(e);
+                btn.classList.remove('loading');
+                showToast('Xatolik yuz berdi', 'error');
+            }
         }
 
-        function handleRegister() {
+        async function handleRegister() {
             clearErrors();
             const name = document.getElementById('regName').value.trim();
             const email = document.getElementById('regEmail').value.trim();
@@ -575,36 +601,69 @@
             const btn = document.getElementById('registerBtn');
             btn.classList.add('loading');
 
-            setTimeout(() => {
-                const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
-                if (users.find(u => u.email === email)) {
+            const isAdmin = email === 'admin@shootplan.uz';
+            const status = isAdmin ? 'approved' : 'pending';
+
+            if (typeof supabaseClient === 'undefined' || !supabaseClient) {
+                // Fallback LocalStorage
+                setTimeout(() => {
+                    const users = JSON.parse(localStorage.getItem('shootplan_users') || '[]');
+                    if (users.find(u => u.email === email)) {
+                        btn.classList.remove('loading');
+                        showToast('Bu email ro\'yxatdan o\'tgan', 'error');
+                        return;
+                    }
+                    const newUser = { id: Date.now().toString(), name, email, password, approvalStatus: status };
+                    users.push(newUser);
+                    localStorage.setItem('shootplan_users', JSON.stringify(users));
+
+                    btn.classList.remove('loading');
+                    if (!isAdmin) {
+                        showToast('Hisob yaratildi! Admin tasdig\'ini kuting', 'success');
+                        setTimeout(() => navBack(), 1500);
+                    } else {
+                        const sessionData = { id: newUser.id, name: newUser.name, email: newUser.email, loggedAt: Date.now() };
+                        localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
+                        showToast('Admin hisobi tayyor!', 'success');
+                        setTimeout(() => window.location.href = 'index.html', 800);
+                    }
+                }, 500);
+                return;
+            }
+
+            try {
+                // Supabase
+                const { data: existing, error: errFetch } = await supabaseClient
+                    .from('app_users').select('id').eq('email', email).limit(1);
+                
+                if (existing && existing.length > 0) {
                     btn.classList.remove('loading');
                     showToast('Bu email ro\'yxatdan o\'tgan', 'error');
                     return;
                 }
 
-                const isAdmin = email === 'admin@shootplan.uz' || users.length === 0;
+                const { data: newUser, error: errInsert } = await supabaseClient
+                    .from('app_users')
+                    .insert([{ full_name: name, email, password, approval_status: status }])
+                    .select();
 
-                const newUser = {
-                    id: Date.now().toString(),
-                    name: name, email: email, password: password,
-                    approvalStatus: isAdmin ? 'approved' : 'pending'
-                };
-                
-                users.push(newUser);
-                localStorage.setItem('shootplan_users', JSON.stringify(users));
+                if (errInsert) throw errInsert;
 
                 btn.classList.remove('loading');
                 if (!isAdmin) {
                     showToast('Hisob yaratildi! Admin tasdig\'ini kuting', 'success');
                     setTimeout(() => navBack(), 1500);
                 } else {
-                    const sessionData = { id: newUser.id, name: newUser.name, email: newUser.email, loggedAt: Date.now() };
+                    const sessionData = { id: newUser[0].id, name: newUser[0].full_name, email: newUser[0].email, loggedAt: Date.now() };
                     localStorage.setItem('shootplan_session', JSON.stringify(sessionData));
                     showToast('Admin hisobi tayyor!', 'success');
                     setTimeout(() => window.location.href = 'index.html', 800);
                 }
-            }, 1000);
+            } catch(e) {
+                console.error(e);
+                btn.classList.remove('loading');
+                showToast('Xatolik yuz berdi', 'error');
+            }
         }
 
         function handleForgot() {
